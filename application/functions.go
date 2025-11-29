@@ -111,6 +111,95 @@ func (rf *ReducedFormVAR) Forecast(yHist *mat.Dense, steps int) (*mat.Dense, err
 	return forecast, nil
 }
 
+// IRF computes impulse responses to a one-time structural shock in a variable shockIndex
+// Horizon: number of periods to compute (h=0, ..., horizon-1)
+// shockIndex: index of variable to shock, (0-based)
+// Returns: horizon x K matrix. where row h is response of all K vars at horizon h
+// Usage:
+// rf, _ := (&OLSEstimator{}).Estimate(ts, spec, EstimationOptions{})
+// irfMat, err := rf.IRF(20, 0) // 20-period IRF to shock in variable 0
+func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
+	if horizon <= 0 {
+		return nil, fmt.Errorf("horizon must be > 0")
+	}
+
+	p := rf.Model.Lags
+	if p <= 0 {
+		return nil, fmt.Errorf("lags must be > 0 to IRF")
+	}
+
+	K, _ := rf.A[0].Dims()
+	if shockIndex < 0 || shockIndex >= K {
+		return nil, fmt.Errorf("shockIndex must be between 0 and %d", K-1)
+	}
+
+	// Makes the shock matrix
+	shock := make([]float64, K)
+	if rf.SigmaU != nil {
+		var chol mat.Cholesky
+		// Cholesky decomposition applied to SigmaU, calculates LL'
+		if chol.Factorize(rf.SigmaU) {
+			L := mat.NewTriDense(K, mat.Lower, nil)
+			chol.LTo(L) // SigmaU = L * L^T
+			// get the shock vector
+			for i := 0; i < K; i++ {
+				shock[i] = L.At(i, shockIndex)
+			}
+		} else {
+			// fallback if SigmaU is not positive definite
+			shock[shockIndex] = 1.0
+		}
+	} else {
+		// fall back if SigmaU is not provided
+		shock[shockIndex] = 1.0
+	}
+
+	// Moving-average coeff matrix Psi_h
+	Psi := make([]*mat.Dense, horizon)
+
+	// Psi_0 = I_K, makes matrix using mat
+	Idata := make([]float64, K*K)
+
+	for i := 0; i < K; i++ {
+		Idata[i*K+i] = 1.0
+	}
+	// makes a new identity matrix
+	Psi[0] = mat.NewDense(K, K, Idata)
+
+	// Recursively computes Psi_h
+	for h := 1; h < horizon; h++ {
+		M := mat.NewDense(K, K, nil)
+		maxLag := p
+		if h < p {
+			maxLag = h
+		}
+		for j := 1; j <= maxLag; j++ {
+			var tmp mat.Dense
+			tmp.Mul(rf.A[j-1], Psi[h-j]) // A_j * Psi_{h-j}
+			M.Add(M, &tmp)
+		}
+		Psi[h] = M
+	}
+
+	// IRF[h] = Psi_h * shock
+
+	irf := mat.NewDense(horizon, K, nil)
+	shockVec := mat.NewVecDense(K, shock)
+
+	for h := 0; h < horizon; h++ {
+		var resp mat.VecDense
+		resp.MulVec(Psi[h], shockVec)
+		for i := 0; i < K; i++ {
+			irf.Set(h, i, resp.AtVec(i))
+		}
+	}
+
+	return irf, nil
+}
+
 // --- OLS IMPLEMENTATION ---
 func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationOptions) (*ReducedFormVAR, error) {
 	// 1. Build lagged design matrix X and Y
