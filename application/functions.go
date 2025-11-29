@@ -202,9 +202,163 @@ func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
 
 // --- OLS IMPLEMENTATION ---
 func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationOptions) (*ReducedFormVAR, error) {
-	// 1. Build lagged design matrix X and Y
-	// 2. Run (possibly multiple) linear regressions
-	// 3. Assemble Phi, C, SigmaU
-	// 4. Return &ReducedFormVAR{...}
-	return nil, nil
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+
+	T, K := ts.Y.Dims()
+	p := spec.Lags
+
+	if p <= 0 {
+		return nil, fmt.Errorf("lags must be > 0")
+	}
+
+	if T <= p {
+		return nil, fmt.Errorf("need at least p+1 observations: p = %d, T = %d", p, T)
+	}
+	if spec.HasExogenous {
+		return nil, fmt.Errorf("exogenous variables not supported yet")
+	}
+
+	// Builds the response matrix for later use
+	Treg := T - p // Usable rows
+
+	// Response matrix Yreg: rows are y_p, y_{p+1}, ..., y_{T-1}
+	Yreg := mat.NewDense(Treg, K, nil)
+	for t := 0; t < Treg; t++ {
+		for k := 0; k < K; k++ {
+			Yreg.Set(t, k, ts.Y.At(t+p, k))
+		}
+	}
+
+	// Deterministic structure
+	hasConst := spec.Deterministic == DetConst || spec.Deterministic == DetConstTrend
+	hasTrend := spec.Deterministic == DetTrend || spec.Deterministic == DetConstTrend
+
+	detCols := 0
+	if hasConst {
+		detCols++
+	}
+	if hasTrend {
+		detCols++
+	}
+
+	lagCols := p * K
+	m := detCols + lagCols // total regressors
+
+	X := mat.NewDense(Treg, m, nil)
+
+	// Fill X row-by-row
+
+	for t := 0; t < Treg; t++ {
+		col := 0
+		// time index
+		timeIndex := float64(t + p + 1)
+
+		if hasConst {
+			X.Set(t, col, 1.0)
+			col++
+		}
+		if hasTrend {
+			X.Set(t, col, timeIndex)
+			col++
+		}
+
+		// Lagged Y's: [ y_{t+p-1}, y_{t+p-2}, ..., y_{t+p-p}]
+		for j := 1; j <= p; j++ {
+			srcRow := t + p - j
+			for k := 0; k < K; k++ {
+				X.Set(t, col, ts.Y.At(srcRow, k))
+				col++
+			}
+		}
+	}
+
+	// B = (X'X)^(-1) X'Y
+	// Calculates closed form
+	var B mat.Dense
+
+	// First try: normal equations B = (X'X)^(-1) X'Y
+	var xtx mat.Dense
+	xtx.Mul(X.T(), X)
+
+	var xtxInv mat.Dense
+	if err := xtxInv.Inverse(&xtx); err == nil {
+		// X'X is invertible: standard OLS
+		var xty mat.Dense
+		xty.Mul(X.T(), Yreg)
+		B.Mul(&xtxInv, &xty)
+	} else {
+		// Fallback: X'X is singular or badly conditioned.
+		// Use SVD-based least squares: minimize ||Yreg - X B||_F with minimum-norm B.
+
+		var svd mat.SVD
+		ok := svd.Factorize(X, mat.SVDFullU|mat.SVDFullV)
+		if !ok {
+			return nil, fmt.Errorf("OLS failed: X'X singular and SVD factorization failed: %v", err)
+		}
+
+		// Choose an effective numerical rank (tolerance can be tuned)
+		rank := svd.Rank(1e-12)
+
+		// Solve X * B ≈ Yreg in least-squares sense; B will be (m × K)
+		// This gives us the Moore_penrose pseudoinverse commonly used in regression too
+		svd.SolveTo(&B, Yreg, rank)
+	}
+
+	// Split B into C (deterministic) and A_j's
+	var C *mat.Dense
+	if detCols > 0 {
+		C = mat.NewDense(K, detCols, nil)
+		for k := 0; k < K; k++ {
+			for d := 0; d < detCols; d++ {
+				C.Set(k, d, B.At(d, k))
+			}
+		}
+	}
+
+	A := make([]*mat.Dense, p)
+	for j := 0; j < p; j++ {
+		Aj := mat.NewDense(K, K, nil)
+		rowOffset := detCols + j*K // start row of this lag block in B
+
+		for eq := 0; eq < K; eq++ {
+			for colVar := 0; colVar < K; colVar++ {
+				Aj.Set(eq, colVar, B.At(rowOffset+colVar, eq))
+			}
+		}
+		A[j] = Aj
+	}
+
+	// Residual covariance SigmaU
+	var Yhat mat.Dense
+	Yhat.Mul(X, &B)
+
+	var U mat.Dense
+	U.Sub(Yreg, &Yhat) // Treg x K
+
+	var utu mat.Dense
+	utu.Mul(U.T(), &U) // K x K
+
+	df := float64(Treg - m)
+	if df <= 0 {
+		df = float64(Treg) // fallback
+	}
+
+	sigmaData := make([]float64, K*K)
+	for i := 0; i < K; i++ {
+		for j := 0; j < K; j++ {
+			sigmaData[i*K+j] = utu.At(i, j) / df
+		}
+	}
+	SigmaU := mat.NewSymDense(K, sigmaData)
+
+	rf := &ReducedFormVAR{
+		Model:  spec,
+		A:      A,
+		C:      C,
+		SigmaU: SigmaU,
+	}
+
+	return rf, nil
 }
