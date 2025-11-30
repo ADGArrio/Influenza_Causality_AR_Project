@@ -92,16 +92,17 @@ func (rf *ReducedFormVAR) Forecast(yHist *mat.Dense, steps int) (*mat.Dense, err
 				if hasTrend {
 					val += rf.C.At(eq, detTrendIdx) * tIdx
 				}
+			}
 
-				// lagged part: sum_j A_j * y_{t-j}
-				for lag := 1; lag <= p; lag++ {
-					A := rf.A[lag-1]
-					prevRow := row - lag
-					for j := 0; j < K; j++ {
-						val += A.At(eq, j) * out.At(prevRow, j)
-					}
+			// lagged part: sum_j A_j * y_{t-j}
+			for lag := 1; lag <= p; lag++ {
+				A := rf.A[lag-1]
+				prevRow := row - lag
+				for j := 0; j < K; j++ {
+					val += A.At(eq, j) * out.At(prevRow, j)
 				}
 			}
+
 			// Sets each row of the forecast with the current value at each column
 			out.Set(row, eq, val)
 		}
@@ -283,7 +284,10 @@ func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationO
 	xtx.Mul(X.T(), X)
 
 	var xtxInv mat.Dense
-	if err := xtxInv.Inverse(&xtx); err == nil {
+
+	xtxError := xtxInv.Inverse(&xtx)
+
+	if xtxError == nil {
 		// X'X is invertible: standard OLS
 		var xty mat.Dense
 		xty.Mul(X.T(), Yreg)
@@ -295,7 +299,7 @@ func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationO
 		var svd mat.SVD
 		ok := svd.Factorize(X, mat.SVDFullU|mat.SVDFullV)
 		if !ok {
-			return nil, fmt.Errorf("OLS failed: X'X singular and SVD factorization failed: %v", err)
+			return nil, fmt.Errorf("OLS failed: X'X singular and SVD factorization failed: %v", xtxError)
 		}
 
 		// Choose an effective numerical rank (tolerance can be tuned)
@@ -303,7 +307,14 @@ func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationO
 
 		// Solve X * B ≈ Yreg in least-squares sense; B will be (m × K)
 		// This gives us the Moore_penrose pseudoinverse commonly used in regression too
-		svd.SolveTo(&B, Yreg, rank)
+		// If rank == 0, the matrix X is (numerically) all-zero.
+		// The minimum-norm least-squares solution to X B ≈ Y is just B = 0.
+		if rank == 0 {
+			B = *mat.NewDense(m, K, nil) // all zeros
+		} else {
+			// Solve X * B ≈ Yreg in least-squares sense; B will be (m × K)
+			svd.SolveTo(&B, Yreg, rank)
+		}
 	}
 
 	// Split B into C (deterministic) and A_j's
