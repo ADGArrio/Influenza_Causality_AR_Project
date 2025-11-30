@@ -1,0 +1,10 @@
+Assumption Check Report
+Source file: /Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/USA_Training_Data.csv
+
+[Linearity] inf_a_log_diff shows nonlinearity (RESET p=0.0029)
+[Variance] inf_a_log_diff shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_b_log_diff shows time-varying variance (ARCH p=0.0000)
+[Variance] avg_temp shows time-varying variance (ARCH p=0.0000)
+[Variance] humidity shows time-varying variance (ARCH p=0.0000)
+[Variance] season_sin shows time-varying variance (ARCH p=0.0000)
+[Variance] season_cos shows time-varying variance (ARCH p=0.0000)

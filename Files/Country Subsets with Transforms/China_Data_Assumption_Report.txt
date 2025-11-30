@@ -1,0 +1,25 @@
+Assumption Check Report
+Source file: /Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/country_subsets/China_Training_Data.csv
+
+[Stationarity] isoyw appears NON-stationary (ADF p=0.2472)
+[Linearity] isoyw shows nonlinearity (RESET p=0.0000)
+[Linearity] week shows nonlinearity (RESET p=0.0000)
+[Linearity] season_cos shows nonlinearity (RESET p=0.0019)
+[Variance] isoyw shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_all shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_a shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_b shows time-varying variance (ARCH p=0.0000)
+[Variance] pct_a shows time-varying variance (ARCH p=0.0000)
+[Variance] pct_b shows time-varying variance (ARCH p=0.0000)
+[Variance] week shows time-varying variance (ARCH p=0.0000)
+[Variance] season_sin shows time-varying variance (ARCH p=0.0000)
+[Variance] season_cos shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_all_log shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_a_log shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_b_log shows time-varying variance (ARCH p=0.0000)
+[Multicollinearity] inf_all has high VIF=inf
+[Multicollinearity] inf_a has high VIF=inf
+[Multicollinearity] inf_b has high VIF=inf
+[Multicollinearity] pct_a has high VIF=inf
+[Multicollinearity] pct_b has high VIF=inf
+[Multicollinearity] inf_a_log has high VIF=13.55
