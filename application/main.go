@@ -43,4 +43,7 @@ func main() {
 		panic(err)
 	}
 	PrintIRF(irfMat, ts.VarNames, 2)
+
+	// 6. Prints Summary
+	rf.Summary(ts)
 }
