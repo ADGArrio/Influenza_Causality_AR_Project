@@ -37,4 +37,10 @@ func main() {
 
 	PrintForecast(fcst)
 
+	// 5. IRF to shock sample variable 2
+	irfMat, err := rf.IRF(12, 2)
+	if err != nil {
+		panic(err)
+	}
+	PrintIRF(irfMat, ts.VarNames, 2)
 }
