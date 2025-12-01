@@ -67,4 +67,10 @@ func main() {
 
 	// 6. Prints Summary
 	rf.Summary(ts)
+
+	// 7. Ouptput residuals to CSV
+	err = rf.OutputForecastsToCSV("../Files/output/output.csv", fcst, ts.VarNames)
+	if err != nil {
+		panic(err)
+	}
 }
