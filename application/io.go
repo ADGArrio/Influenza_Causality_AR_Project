@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -144,4 +145,108 @@ func PrintIRF(irf *mat.Dense, varNames []string, shockIndex int) {
 		}
 		fmt.Println()
 	}
+}
+
+// Produces a summary table of all of the model params
+func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
+	if rf == nil {
+		fmt.Println("VAR model is nil")
+		return
+	}
+
+	fmt.Println("=======================================")
+	fmt.Println("         Reduced-form VAR Summary      ")
+	fmt.Println("=======================================")
+
+	// --------------------------------
+	// Basic dimensions
+	// --------------------------------
+	var (
+		T, K int
+	)
+
+	if ts != nil && ts.Y != nil {
+		T, K = ts.Y.Dims()
+	} else if len(rf.A) > 0 && rf.A[0] != nil {
+		K, _ = rf.A[0].Dims()
+	}
+
+	p := rf.Model.Lags
+
+	fmt.Printf("Number of variables (K): %d\n", K)
+	fmt.Printf("Lag order (p):           %d\n", p)
+	if ts != nil && ts.Y != nil {
+		fmt.Printf("Sample size (T):         %d\n", T)
+	}
+	fmt.Printf("Number of lag matrices:  %d\n", len(rf.A))
+	fmt.Println()
+
+	// --------------------------------
+	// Model specification
+	// --------------------------------
+	fmt.Println("Model specification:")
+	fmt.Printf("  Deterministic: %v\n", rf.Model.Deterministic)
+	fmt.Printf("  Has exogenous: %v\n", rf.Model.HasExogenous)
+	fmt.Println()
+
+	// --------------------------------
+	// Variable names
+	// --------------------------------
+	if ts != nil && len(ts.VarNames) > 0 {
+		fmt.Println("Variables:")
+		fmt.Printf("  %s\n", strings.Join(ts.VarNames, ", "))
+		fmt.Println()
+	}
+
+	// --------------------------------
+	// Parameter counts
+	// --------------------------------
+	numCoeff := 0
+	if len(rf.A) > 0 && rf.A[0] != nil {
+		rA, cA := rf.A[0].Dims()
+		numCoeff = len(rf.A) * rA * cA
+	}
+	fmt.Printf("Total coefficients in A matrices: %d\n", numCoeff)
+
+	// intercepts (if any)
+	if rf.C != nil {
+		rC, cC := rf.C.Dims()
+		fmt.Printf("Intercept terms (C) dimensions:   %d x %d\n", rC, cC)
+	}
+	fmt.Println()
+
+	// --------------------------------
+	// Coefficient matrices
+	// --------------------------------
+	if len(rf.A) > 0 {
+		fmt.Println("Coefficient matrices A_1 ... A_p:")
+		for i, Ai := range rf.A {
+			if Ai == nil {
+				continue
+			}
+			fmt.Printf("\nA_%d =\n", i+1)
+			fmt.Printf("%v\n", mat.Formatted(Ai, mat.Prefix("  ")))
+		}
+		fmt.Println()
+	}
+
+	// --------------------------------
+	// Intercept (if present)
+	// --------------------------------
+	if rf.C != nil {
+		fmt.Println("Intercept matrix C:")
+		fmt.Printf("%v\n", mat.Formatted(rf.C, mat.Prefix("  ")))
+		fmt.Println()
+	}
+
+	// --------------------------------
+	// Covariance matrix Σ_u
+	// --------------------------------
+	if rf.SigmaU != nil {
+		fmt.Println("Residual covariance matrix Σ_u:")
+		fmt.Printf("%v\n", mat.Formatted(rf.SigmaU, mat.Prefix("  ")))
+		fmt.Println()
+	}
+
+	fmt.Println("=======================================")
 }
