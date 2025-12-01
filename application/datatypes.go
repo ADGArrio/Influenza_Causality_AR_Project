@@ -103,3 +103,16 @@ type VARModel struct {
 	// Granger Causality Results
 	GrangerPValues map[string]map[string]float64 // Map[CauseVar][EffectVar] = PValue
 }
+
+
+// --- GRANGER CAUSALITY TEST ---
+
+// GrangerCausalityResult holds the result of a Granger causality test
+type GrangerCausalityResult struct {
+	CauseVar    string  // Variable being tested as the cause
+	EffectVar   string  // Variable being tested as the effect
+	FStatistic  float64 // F-statistic value
+	PValue      float64 // P-value
+	Lags        int     // Number of lags used
+	Significant bool    // True if p-value < 0.05
+}

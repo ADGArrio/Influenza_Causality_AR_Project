@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
-
+	"math"
+	"os"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat/distuv"
 )
 
 // --- FUNCTIONS FOR BASE ---
@@ -201,6 +204,46 @@ func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
 	return irf, nil
 }
 
+func (rf *ReducedFormVAR) OutputForecastsToCSV(path string, fc *mat.Dense, varNames []string) error {
+
+	rows, cols := fc.Dims()
+
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Initialize a new CSV writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush() // Ensure all buffered data is written
+
+	// Write header
+	header := make([]string, cols)
+	for j := 0; j < cols; j++ {
+		if len(varNames) == cols {
+			header[j] = varNames[j]
+		} else {
+			header[j] = fmt.Sprintf("Var%d", j+1)
+		}
+	}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Write data rows
+	for i := 0; i < rows; i++ {
+		record := make([]string, cols)
+		for j := 0; j < cols; j++ {
+			record[j] = fmt.Sprintf("%f", fc.At(i, j))
+		}
+		if err := writer.Write(record); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // --- OLS IMPLEMENTATION ---
 func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationOptions) (*ReducedFormVAR, error) {
 	if ts == nil || ts.Y == nil {
@@ -373,3 +416,211 @@ func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationO
 
 	return rf, nil
 }
+
+
+// GrangerCausality tests whether causeIdx Granger-causes effectIdx
+// Returns the F-statistic and p-value
+func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx int) (*GrangerCausalityResult, error) {
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+
+	T, K := ts.Y.Dims()
+	p := rf.Model.Lags
+
+	if causeIdx < 0 || causeIdx >= K {
+		return nil, fmt.Errorf("causeIdx out of range: %d", causeIdx)
+	}
+	if effectIdx < 0 || effectIdx >= K {
+		return nil, fmt.Errorf("effectIdx out of range: %d", effectIdx)
+	}
+	if causeIdx == effectIdx {
+		return nil, fmt.Errorf("causeIdx and effectIdx cannot be the same")
+	}
+
+	// Build response vector for the effect variable
+	Treg := T - p
+	yEffect := mat.NewVecDense(Treg, nil)
+	for t := 0; t < Treg; t++ {
+		yEffect.SetVec(t, ts.Y.At(t+p, effectIdx))
+	}
+
+	// Deterministic structure
+	hasConst := rf.Model.Deterministic == DetConst || rf.Model.Deterministic == DetConstTrend
+	hasTrend := rf.Model.Deterministic == DetTrend || rf.Model.Deterministic == DetConstTrend
+
+	detCols := 0
+	if hasConst {
+		detCols++
+	}
+	if hasTrend {
+		detCols++
+	}
+
+	// Build UNRESTRICTED model: includes all lagged variables
+	lagCols := p * K
+	mUnrestricted := detCols + lagCols
+	XUnrestricted := mat.NewDense(Treg, mUnrestricted, nil)
+
+	for t := 0; t < Treg; t++ {
+		col := 0
+		timeIndex := float64(t + p + 1)
+
+		if hasConst {
+			XUnrestricted.Set(t, col, 1.0)
+			col++
+		}
+		if hasTrend {
+			XUnrestricted.Set(t, col, timeIndex)
+			col++
+		}
+
+		for j := 1; j <= p; j++ {
+			srcRow := t + p - j
+			for k := 0; k < K; k++ {
+				XUnrestricted.Set(t, col, ts.Y.At(srcRow, k))
+				col++
+			}
+		}
+	}
+
+	// Fit unrestricted model
+	var betaUnrestricted mat.VecDense
+	err := betaUnrestricted.SolveVec(XUnrestricted, yEffect)
+	if err != nil {
+		return nil, fmt.Errorf("failed to solve unrestricted model: %v", err)
+	}
+
+	// Calculate RSS for unrestricted model
+	var yHatUnrestricted mat.VecDense
+	yHatUnrestricted.MulVec(XUnrestricted, &betaUnrestricted)
+
+	var residUnrestricted mat.VecDense
+	residUnrestricted.SubVec(yEffect, &yHatUnrestricted)
+
+	rssUnrestricted := mat.Dot(&residUnrestricted, &residUnrestricted)
+
+	// Build RESTRICTED model: excludes lags of the cause variable
+	mRestricted := detCols + p*(K-1) // exclude p lags of cause variable
+	XRestricted := mat.NewDense(Treg, mRestricted, nil)
+
+	for t := 0; t < Treg; t++ {
+		col := 0
+		timeIndex := float64(t + p + 1)
+
+		if hasConst {
+			XRestricted.Set(t, col, 1.0)
+			col++
+		}
+		if hasTrend {
+			XRestricted.Set(t, col, timeIndex)
+			col++
+		}
+
+		// Add lags but skip the cause variable
+		for j := 1; j <= p; j++ {
+			srcRow := t + p - j
+			for k := 0; k < K; k++ {
+				if k != causeIdx { // Skip the cause variable
+					XRestricted.Set(t, col, ts.Y.At(srcRow, k))
+					col++
+				}
+			}
+		}
+	}
+
+	// Fit restricted model
+	var betaRestricted mat.VecDense
+	err = betaRestricted.SolveVec(XRestricted, yEffect)
+	if err != nil {
+		return nil, fmt.Errorf("failed to solve restricted model: %v", err)
+	}
+
+	// Calculate RSS for restricted model
+	var yHatRestricted mat.VecDense
+	yHatRestricted.MulVec(XRestricted, &betaRestricted)
+
+	var residRestricted mat.VecDense
+	residRestricted.SubVec(yEffect, &yHatRestricted)
+
+	rssRestricted := mat.Dot(&residRestricted, &residRestricted)
+
+	// Calculate F-statistic
+	// F = [(RSS_r - RSS_ur) / q] / [RSS_ur / (T - k)]
+	// where q = number of restrictions = p (p lags of cause variable)
+	// k = number of parameters in unrestricted model
+	q := float64(p)
+	k := float64(mUnrestricted)
+	dof := float64(Treg) - k
+
+	if dof <= 0 {
+		return nil, fmt.Errorf("insufficient degrees of freedom: %f", dof)
+	}
+
+	fStatistic := ((rssRestricted - rssUnrestricted) / q) / (rssUnrestricted / dof)
+
+	// Calculate p-value using F-distribution
+	fDist := distuv.F{
+		D1: q,
+		D2: dof,
+	}
+	pValue := 1.0 - fDist.CDF(fStatistic)
+
+	// Handle edge cases
+	if math.IsNaN(fStatistic) || math.IsInf(fStatistic, 0) {
+		fStatistic = 0
+		pValue = 1.0
+	}
+	if pValue < 0 {
+		pValue = 0
+	}
+	if pValue > 1 {
+		pValue = 1.0
+	}
+
+	result := &GrangerCausalityResult{
+		CauseVar:    ts.VarNames[causeIdx],
+		EffectVar:   ts.VarNames[effectIdx],
+		FStatistic:  fStatistic,
+		PValue:      pValue,
+		Lags:        p,
+		Significant: pValue < 0.05,
+	}
+
+	return result, nil
+}
+
+// GrangerCausalityMatrix performs pairwise Granger causality tests for all variables
+func (rf *ReducedFormVAR) GrangerCausalityMatrix(ts *TimeSeries) ([][]*GrangerCausalityResult, error) {
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+
+	_, K := ts.Y.Dims()
+
+	// Create matrix to store results
+	results := make([][]*GrangerCausalityResult, K)
+	for i := range results {
+		results[i] = make([]*GrangerCausalityResult, K)
+	}
+
+	// Perform pairwise tests
+	for i := 0; i < K; i++ {
+		for j := 0; j < K; j++ {
+			if i == j {
+				// No self-causality test
+				results[i][j] = nil
+				continue
+			}
+
+			result, err := rf.GrangerCausality(ts, i, j)
+			if err != nil {
+				return nil, fmt.Errorf("error testing %s -> %s: %v", ts.VarNames[i], ts.VarNames[j], err)
+			}
+			results[i][j] = result
+		}
+	}
+
+	return results, nil
+}
+
