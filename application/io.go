@@ -121,3 +121,27 @@ func PrintForecast(fc *mat.Dense) {
 	fmt.Println("\n=== Forecast Matrix ===")
 	fmt.Printf("%v\n", mat.Formatted(fc, mat.Prefix(" ")))
 }
+
+// Helps print the IRF matrix, requires the matrix, variable names, and the shockindex
+func PrintIRF(irf *mat.Dense, varNames []string, shockIndex int) {
+	rows, cols := irf.Dims()
+
+	fmt.Printf("\n=== Impulse Response Function ===\n")
+	fmt.Printf("Shock to variable %d (%s)\n\n", shockIndex, varNames[shockIndex])
+
+	// Print header
+	fmt.Printf("h\t")
+	for _, name := range varNames {
+		fmt.Printf("%12s", name)
+	}
+	fmt.Println()
+
+	// Print rows
+	for h := 0; h < rows; h++ {
+		fmt.Printf("%d\t", h)
+		for j := 0; j < cols; j++ {
+			fmt.Printf("%12.6f", irf.At(h, j))
+		}
+		fmt.Println()
+	}
+}
