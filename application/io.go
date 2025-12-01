@@ -104,3 +104,20 @@ func LoadCSVToTimeSeries(path string) (*TimeSeries, error) {
 
 	return ts, nil
 }
+
+// Helper function to print coefficient matrices
+func (rf *ReducedFormVAR) PrintCoefficients() {
+	for i, Ai := range rf.A {
+		fmt.Printf("\n=== A_%d ===\n", i+1)
+		fmt.Printf("%v\n", mat.Formatted(Ai, mat.Prefix(" ")))
+	}
+
+	fmt.Println("\n=== Covariance Matrix Σ_u ===")
+	fmt.Printf("%v\n", mat.Formatted(rf.SigmaU, mat.Prefix(" ")))
+}
+
+// Helper function to print forecasts
+func PrintForecast(fc *mat.Dense) {
+	fmt.Println("\n=== Forecast Matrix ===")
+	fmt.Printf("%v\n", mat.Formatted(fc, mat.Prefix(" ")))
+}
