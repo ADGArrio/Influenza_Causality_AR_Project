@@ -9,7 +9,7 @@ import time
 # -----------------------------
 WHO_FLUNET_URL = "https://www.who.int/docs/default-source/influenza/flunet-data.csv"  # WHO FluNet CSV URL
 NOAA_API_BASE = "https://www.ncei.noaa.gov/cdo-web/api/v2/"
-NOAA_TOKEN = "bjjrctwQTjWUvgLIyzelyAMxyDKyTAvr"  # Replace with your NOAA token
+NOAA_TOKEN = "bjjrctwQTjWUvgLIyzelyAMxyDKyTAvr" 
 OUTPUT_FILE = "flunet_noaa_features.csv"
 
 # -----------------------------
@@ -50,7 +50,7 @@ def fetch_noaa_weather(country_code, start_date, end_date):
     data = r.json().get("results", [])
     return pd.DataFrame(data)
 
-# For demo: simulate NOAA data (replace with real API calls)
+# Siimulating NOAA data
 print("Fetching NOAA data (simulated)...")
 weather_data = []
 for _, row in flunet_df.iterrows():
