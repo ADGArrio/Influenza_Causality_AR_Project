@@ -250,3 +250,45 @@ func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
 
 	fmt.Println("=======================================")
 }
+
+
+// PrintGrangerCausality prints the Granger causality test results in a formatted table
+func PrintGrangerCausality(results [][]*GrangerCausalityResult, varNames []string) {
+	fmt.Println("\n=== Granger Causality Test Results ===")
+	fmt.Println("Null Hypothesis: Variable X does NOT Granger-cause Variable Y")
+	fmt.Println("Significance level: α = 0.05")
+	fmt.Println()
+
+	K := len(varNames)
+
+	// Print header
+	fmt.Printf("%-20s -> %-20s | F-Statistic | P-Value  | Conclusion\n", "Cause", "Effect")
+	fmt.Println("------------------------------------------------------------------------------------")
+
+	// Print results
+	for i := 0; i < K; i++ {
+		for j := 0; j < K; j++ {
+			if i == j {
+				continue
+			}
+
+			result := results[i][j]
+			if result == nil {
+				continue
+			}
+
+			conclusion := "No causality"
+			if result.Significant {
+				conclusion = "GRANGER-CAUSES"
+			}
+
+			fmt.Printf("%-20s -> %-20s | %11.4f | %8.6f | %s\n",
+				result.CauseVar,
+				result.EffectVar,
+				result.FStatistic,
+				result.PValue,
+				conclusion)
+		}
+	}
+	fmt.Println()
+}
