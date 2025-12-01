@@ -2,11 +2,32 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 func main() {
+	// expect 1 argument: country name
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run main.go <country_name>")
+		return
+	}
+	country := os.Args[1]
+	fmt.Println("Running VAR analysis for country:", country)
+	// Determine filename based on country
+	var filename string
+	switch country {
+	case "India":
+		filename = "India_Training_Data.csv"
+	case "USA":
+		filename = "USA_Training_Data.csv"
+	case "China":
+		filename = "China_Training_Data.csv"
+	default:
+		panic("Unsupported country: " + country + ". Options: India, USA, China")
+	}
+
 	// 1. Load CSV into TimeSeries
-	ts, err := LoadCSVToTimeSeries("../Files/Final_Training_Data/India_Training_Data.csv")
+	ts, err := LoadCSVToTimeSeries("../Files/Final_Training_Data/" + filename)
 	if err != nil {
 		panic(err)
 	}
