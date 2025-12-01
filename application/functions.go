@@ -1,9 +1,10 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"math"
-
+	"os"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distuv"
 )
@@ -201,6 +202,46 @@ func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
 	}
 
 	return irf, nil
+}
+
+func (rf *ReducedFormVAR) OutputForecastsToCSV(path string, fc *mat.Dense, varNames []string) error {
+
+	rows, cols := fc.Dims()
+
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Initialize a new CSV writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush() // Ensure all buffered data is written
+
+	// Write header
+	header := make([]string, cols)
+	for j := 0; j < cols; j++ {
+		if len(varNames) == cols {
+			header[j] = varNames[j]
+		} else {
+			header[j] = fmt.Sprintf("Var%d", j+1)
+		}
+	}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Write data rows
+	for i := 0; i < rows; i++ {
+		record := make([]string, cols)
+		for j := 0; j < cols; j++ {
+			record[j] = fmt.Sprintf("%f", fc.At(i, j))
+		}
+		if err := writer.Write(record); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // --- OLS IMPLEMENTATION ---
