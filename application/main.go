@@ -67,4 +67,41 @@ func main() {
 
 	// 6. Prints Summary
 	rf.Summary(ts)
+
+	// 7. Ouptput residuals to CSV
+	err = rf.OutputForecastsToCSV("../Files/Output/forcast_results.csv", fcst, ts.VarNames)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Forecasts written to ../Files/Output/forcast_results.csv")
+
+	// 8. Run Granger Causality Tests
+	fmt.Println("Performing Granger Causality Analysis...")
+	grangerResults, err := rf.GrangerCausalityMatrix(ts)
+	if err != nil {
+		panic(err)
+	}
+	PrintGrangerCausality(grangerResults, ts.VarNames)
+
+	// 9. Output Granger results to CSV
+	err = rf.OutputGrangerMatrixToCSV("../Files/Output/granger_results.csv", grangerResults, ts.VarNames)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Granger causality results written to ../Files/Output/granger_results.csv")
+
+	// 10. Run varible shocking
+	fmt.Println("Performing Variable Shocking Analysis...")
+	shockResults, err := rf.RunIRFAnalysis(1, 12)
+	if err != nil {
+		panic(err)
+	}
+
+	// 11. Output shocking results to CSV
+	err = rf.OutputIRFAnalysisToCSV("../Files/Output/irf_results.csv", shockResults, ts.VarNames)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("IRF analysis results written to ../Files/Output/irf_results.csv")
 }
