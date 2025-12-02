@@ -4,7 +4,7 @@ import numpy as np
 # -----------------------------
 # 0. Config
 # -----------------------------
-file_path = "./GHCNh_USW00014734_por.psv"  # NEWARK NJ
+file_path = "./GHCNh_USW00014734_por.psv"
 
 # Only keep columns we actually use
 usecols = [
@@ -41,12 +41,11 @@ usecols = [
     "sky_cover_3",
 ]
 
-# Filter only existing columns later, so we don't crash if one is missing
 # -----------------------------
 # 1. Read in chunks, keep last ~25 years (Year >= 2000)
 # -----------------------------
 chunks = []
-chunksize = 200_000  # adjust if needed
+chunksize = 200_000  # tweak if needed
 
 for chunk in pd.read_csv(
     file_path,
@@ -55,7 +54,7 @@ for chunk in pd.read_csv(
     low_memory=False,
     chunksize=chunksize,
 ):
-    # coerce Year to numeric & keep last ~25 years
+    # Keep only recent years to reduce memory
     chunk["Year"] = pd.to_numeric(chunk["Year"], errors="coerce")
     chunk = chunk[chunk["Year"] >= 2000]
 
@@ -84,14 +83,26 @@ df["datetime"] = pd.to_datetime(
     errors="coerce",
 )
 
-df = df.dropna(subset=["datetime"]).sort_values("datetime")
+# 1. Drop rows with unparseable datetime only
+df = df[~df["datetime"].isna()].sort_values("datetime")
+
+# 2. Build complete hourly index
+full_index = pd.date_range(start=df["datetime"].min(),
+                           end=df["datetime"].max(),
+                           freq="H")
+
+# 3. Reindex → missing hours become NA rows (essential for continuity)
+df = df.set_index("datetime").reindex(full_index)
+
+# Rename back to datetime index name
+df.index.name = "datetime"
 
 # -----------------------------
 # 3. Select only useful columns that actually exist
 # -----------------------------
-core_and_optional = usecols  # from above
+core_and_optional = usecols
 keep_cols = [c for c in core_and_optional if c in df.columns]
-keep_cols = ["datetime"] + keep_cols
+
 
 df = df[keep_cols].copy()
 
@@ -100,7 +111,7 @@ df = df[keep_cols].copy()
 # -----------------------------
 for col in ["temperature", "dew_point_temperature", "wet_bulb_temperature"]:
     if col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce") / 10.0
+        df[col] = pd.to_numeric(df[col], errors="coerce") / 10.0  # tenths °C → °C
 
 for col in [
     "precipitation",
@@ -127,10 +138,11 @@ for col in [
 # -----------------------------
 # 5. Aggregate hourly → weekly
 # -----------------------------
-df = df.set_index("datetime")
+
 
 agg_dict = {}
 
+# Mean-type variables
 for col in [
     "temperature",
     "dew_point_temperature",
@@ -148,6 +160,7 @@ for col in [
     if col in df.columns:
         agg_dict[col] = "mean"
 
+# Sum-type variables
 for col in [
     "precipitation",
     "precipitation_3_hour", "precipitation_6_hour",
@@ -158,6 +171,7 @@ for col in [
     if col in df.columns:
         agg_dict[col] = "sum"
 
+# Station metadata: first of each week
 for col in ["Station_ID", "Station_name", "Latitude", "Longitude", "Elevation"]:
     if col in df.columns:
         agg_dict[col] = "first"
@@ -193,5 +207,5 @@ nan_summary = pd.DataFrame({
 print("\nNaN summary per column:")
 print(nan_summary)
 
-weekly.to_csv("newjersey_weather_weekly_last25yrs.csv", index=False)
-nan_summary.to_csv("newjersey_weather_weekly_last25yrs_nan_summary.csv")
+weekly.to_csv("singapore_weather_weekly_last25yrs.csv", index=False)
+nan_summary.to_csv("singapore_weather_weekly_last25yrs_nan_summary.csv")
