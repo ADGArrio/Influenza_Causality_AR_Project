@@ -17,7 +17,7 @@ func main() {
 	var filename string
 	switch country {
 	case "Singapore":
-		filename = "SG_Training_Dataset.csv"
+		filename = "Singapore/SG_Training_Data_transformed.csv"
 	case "India":
 		filename = "India_Training_Data.csv"
 	case "USA":
@@ -39,7 +39,7 @@ func main() {
 
 	// 2. Set up VAR spec
 	spec := ModelSpec{
-		Lags:          25,
+		Lags:          5,
 		Deterministic: DetConst, // or DetConstTrend, etc.
 		HasExogenous:  false,
 	}
