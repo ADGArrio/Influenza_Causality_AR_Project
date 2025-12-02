@@ -1,0 +1,13 @@
+CauseVar,EffectVar,FStatistic,PValue,Lags,Significant
+inf_all_log,temperature,0.942830,0.544724,25,false
+inf_all_log,relative_humidity,1.150955,0.277528,25,false
+inf_all_log,wind_speed,1.198463,0.230205,25,false
+temperature,inf_all_log,1.541121,0.044308,25,true
+temperature,relative_humidity,1.184667,0.243334,25,false
+temperature,wind_speed,2.498756,0.000073,25,true
+relative_humidity,inf_all_log,1.444872,0.073833,25,false
+relative_humidity,temperature,1.025911,0.428686,25,false
+relative_humidity,wind_speed,1.182135,0.245798,25,false
+wind_speed,inf_all_log,0.442543,0.992240,25,false
+wind_speed,temperature,2.094511,0.001383,25,true
+wind_speed,relative_humidity,0.995698,0.469927,25,false
