@@ -488,6 +488,9 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 	if ts == nil || ts.Y == nil {
 		return nil, fmt.Errorf("time series data not provided")
 	}
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
 
 	T, K := ts.Y.Dims()
 	p := rf.Model.Lags
@@ -502,14 +505,17 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 		return nil, fmt.Errorf("causeIdx and effectIdx cannot be the same")
 	}
 
-	// Build response vector for the effect variable
+	// Build response vector for the effect variable: y_effect
 	Treg := T - p
+	if Treg <= 0 {
+		return nil, fmt.Errorf("not enough observations for lags p = %d, T = %d", p, T)
+	}
 	yEffect := mat.NewVecDense(Treg, nil)
 	for t := 0; t < Treg; t++ {
 		yEffect.SetVec(t, ts.Y.At(t+p, effectIdx))
 	}
 
-	// Deterministic structure
+	// Deterministic structure (must mirror Estimate)
 	hasConst := rf.Model.Deterministic == DetConst || rf.Model.Deterministic == DetConstTrend
 	hasTrend := rf.Model.Deterministic == DetTrend || rf.Model.Deterministic == DetConstTrend
 
@@ -521,14 +527,16 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 		detCols++
 	}
 
-	// Build UNRESTRICTED model: includes all lagged variables
+	// --- UNRESTRICTED MODEL (reuse coefficients from rf) ---
+
+	// Build design matrix for unrestricted regression: includes all lagged vars
 	lagCols := p * K
 	mUnrestricted := detCols + lagCols
 	XUnrestricted := mat.NewDense(Treg, mUnrestricted, nil)
 
 	for t := 0; t < Treg; t++ {
 		col := 0
-		timeIndex := float64(t + p + 1)
+		timeIndex := float64(t + p + 1) // same time index convention as Estimate
 
 		if hasConst {
 			XUnrestricted.Set(t, col, 1.0)
@@ -539,6 +547,7 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 			col++
 		}
 
+		// lag blocks: [ y_{t-1,*}, y_{t-2,*}, ..., y_{t-p,*} ]
 		for j := 1; j <= p; j++ {
 			srcRow := t + p - j
 			for k := 0; k < K; k++ {
@@ -548,23 +557,54 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 		}
 	}
 
-	// Fit unrestricted model
-	var betaUnrestricted mat.VecDense
-	err := betaUnrestricted.SolveVec(XUnrestricted, yEffect)
-	if err != nil {
-		return nil, fmt.Errorf("failed to solve unrestricted model: %v", err)
+	// Construct betaUnrestricted from rf.C and rf.A for the effect equation.
+	// Ordering must match XUnrestricted construction above and Estimate()'s B.
+	betaUnrestricted := mat.NewVecDense(mUnrestricted, nil)
+	coefIndex := 0
+
+	// Deterministic part: C is (K x detCols), row = equation (effectIdx)
+	if detCols > 0 && rf.C != nil {
+		if hasConst {
+			betaUnrestricted.SetVec(coefIndex, rf.C.At(effectIdx, 0))
+			coefIndex++
+		}
+		if hasTrend {
+			// If both const & trend, trend is column 1; if only trend, it's column 0.
+			trendCol := 0
+			if hasConst {
+				trendCol = 1
+			}
+			betaUnrestricted.SetVec(coefIndex, rf.C.At(effectIdx, trendCol))
+			coefIndex++
+		}
 	}
 
-	// Calculate RSS for unrestricted model
+	// Lag blocks: for each lag j, for each variable k, use A_j(effectIdx, k)
+	for j := 0; j < p; j++ {
+		Aj := rf.A[j] // KxK
+		for k := 0; k < K; k++ {
+			betaUnrestricted.SetVec(coefIndex, Aj.At(effectIdx, k))
+			coefIndex++
+		}
+	}
+
+	// Sanity check: coefIndex should equal mUnrestricted
+	if coefIndex != mUnrestricted {
+		return nil, fmt.Errorf("internal error: coefIndex (%d) != mUnrestricted (%d)", coefIndex, mUnrestricted)
+	}
+
+	// Compute fitted values and RSS for unrestricted model
 	var yHatUnrestricted mat.VecDense
-	yHatUnrestricted.MulVec(XUnrestricted, &betaUnrestricted)
+	yHatUnrestricted.MulVec(XUnrestricted, betaUnrestricted)
 
 	var residUnrestricted mat.VecDense
 	residUnrestricted.SubVec(yEffect, &yHatUnrestricted)
 
 	rssUnrestricted := mat.Dot(&residUnrestricted, &residUnrestricted)
 
-	// Build RESTRICTED model: excludes lags of the cause variable
+	// --- RESTRICTED MODEL (drop lags of cause variable, re-estimate) ---
+
+	// Restricted design matrix: same deterministics, but we skip causeIdx in lag blocks
 	mRestricted := detCols + p*(K-1) // exclude p lags of cause variable
 	XRestricted := mat.NewDense(Treg, mRestricted, nil)
 
@@ -581,26 +621,25 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 			col++
 		}
 
-		// Add lags but skip the cause variable
 		for j := 1; j <= p; j++ {
 			srcRow := t + p - j
 			for k := 0; k < K; k++ {
-				if k != causeIdx { // Skip the cause variable
-					XRestricted.Set(t, col, ts.Y.At(srcRow, k))
-					col++
+				if k == causeIdx {
+					continue // skip all lags of the cause variable
 				}
+				XRestricted.Set(t, col, ts.Y.At(srcRow, k))
+				col++
 			}
 		}
 	}
 
-	// Fit restricted model
+	// Fit restricted model via least squares: X_R * beta_R ≈ yEffect
 	var betaRestricted mat.VecDense
-	err = betaRestricted.SolveVec(XRestricted, yEffect)
-	if err != nil {
+	if err := betaRestricted.SolveVec(XRestricted, yEffect); err != nil {
 		return nil, fmt.Errorf("failed to solve restricted model: %v", err)
 	}
 
-	// Calculate RSS for restricted model
+	// Compute fitted values and RSS for restricted model
 	var yHatRestricted mat.VecDense
 	yHatRestricted.MulVec(XRestricted, &betaRestricted)
 
@@ -609,28 +648,27 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 
 	rssRestricted := mat.Dot(&residRestricted, &residRestricted)
 
-	// Calculate F-statistic
-	// F = [(RSS_r - RSS_ur) / q] / [RSS_ur / (T - k)]
-	// where q = number of restrictions = p (p lags of cause variable)
-	// k = number of parameters in unrestricted model
+	// --- F-statistic and p-value ---
+
+	// q = number of restrictions = number of dropped coefficients = p (one per lag of cause variable)
 	q := float64(p)
+	// k = number of parameters in unrestricted model
 	k := float64(mUnrestricted)
 	dof := float64(Treg) - k
-
 	if dof <= 0 {
 		return nil, fmt.Errorf("insufficient degrees of freedom: %f", dof)
 	}
 
 	fStatistic := ((rssRestricted - rssUnrestricted) / q) / (rssUnrestricted / dof)
 
-	// Calculate p-value using F-distribution
+	// F-distribution p-value
 	fDist := distuv.F{
 		D1: q,
 		D2: dof,
 	}
 	pValue := 1.0 - fDist.CDF(fStatistic)
 
-	// Handle edge cases
+	// Edge cases
 	if math.IsNaN(fStatistic) || math.IsInf(fStatistic, 0) {
 		fStatistic = 0
 		pValue = 1.0
