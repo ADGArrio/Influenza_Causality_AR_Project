@@ -6,9 +6,9 @@ import (
 )
 
 func main() {
-	// expect 1 argument: country name
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <country_name>")
+	// expect 2 argument: country name, influenza type
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: go run main.go <country_name> <influenza_type>")
 		return
 	}
 	country := os.Args[1]
@@ -25,6 +25,14 @@ func main() {
 	default:
 		panic("Unsupported country: " + country + ". Options: India, USA, China")
 	}
+
+	// influenzaType := os.Args[2]
+	// var influenzaVarIndex int
+	// switch influenzaType {
+	// case "A":
+	// 	influenzaVarIndex = 0
+	// case "B":
+	// 	influenzaVarIndex = 1
 
 	// 1. Load CSV into TimeSeries
 	ts, err := LoadCSVToTimeSeries("../Files/Final_Training_Data/" + filename)
