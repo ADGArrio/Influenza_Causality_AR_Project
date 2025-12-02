@@ -16,6 +16,8 @@ func main() {
 	// Determine filename based on country
 	var filename string
 	switch country {
+	case "Singapore":
+		filename = "Singapore/SG_Training_Data_transformed.csv"
 	case "India":
 		filename = "India_Training_Data.csv"
 	case "USA":
@@ -45,7 +47,7 @@ func main() {
 
 	// 2. Set up VAR spec
 	spec := ModelSpec{
-		Lags:          2,
+		Lags:          5,
 		Deterministic: DetConst, // or DetConstTrend, etc.
 		HasExogenous:  false,
 	}
@@ -77,11 +79,11 @@ func main() {
 	rf.Summary(ts)
 
 	// 7. Ouptput residuals to CSV
-	err = rf.OutputForecastsToCSV("../Files/Output/forcast_results.csv", fcst, ts.VarNames)
+	err = rf.OutputForecastsToCSV("../Files/Output/forecast_results.csv", fcst, ts.VarNames)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Forecasts written to ../Files/Output/forcast_results.csv")
+	fmt.Println("Forecasts written to ../Files/Output/forecast_results.csv")
 
 	// 8. Run Granger Causality Tests
 	fmt.Println("Performing Granger Causality Analysis...")

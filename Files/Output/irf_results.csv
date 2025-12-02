@@ -1,7 +1,11 @@
 ShockVariable,CumulativeImpact
-inf_a_log_diff,1.839367
-inf_b_log_diff,1.325050
-avg_temp,0.013939
-humidity,0.023450
-season_sin,0.218770
-season_cos,0.175118
+precipitation,0.010092
+precipitation_24_hour,0.009526
+LOG_INF_A,0.027105
+dew_point_temperature,0.009526
+relative_humidity,0.033242
+wind_speed,0.027535
+wet_bulb_temperature,0.012135
+temperature,0.235837
+sea_level_pressure,0.056821
+visibility,0.010694
