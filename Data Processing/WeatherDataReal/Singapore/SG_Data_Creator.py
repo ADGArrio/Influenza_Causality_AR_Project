@@ -52,6 +52,15 @@ likely_relevant = [
 
 weather = weather[[c for c in likely_relevant if c in weather.columns]]
 
+# Sort by ISO year and week to ensure proper temporal order
+if "iso_year" in weather.columns and "iso_week" in weather.columns:
+    weather = weather.sort_values(["iso_year", "iso_week"])
+
+# Interpolate weather variables to fill small gaps
+for col in ["temperature", "relative_humidity", "wind_speed", "dew_point_temperature"]:
+    if col in weather.columns:
+        weather[col] = weather[col].interpolate(method="linear", limit_direction="both")
+
 print("Weather after cleaning:", weather.columns.tolist())
 
 # %%
@@ -65,6 +74,12 @@ flu["iso_week"] = pd.to_numeric(flu["iso_week"], errors="coerce")
 flu = flu[flu["iso_year"].notna() & flu["iso_week"].notna()].copy()
 flu["iso_year"] = flu["iso_year"].astype(int)
 flu["iso_week"] = flu["iso_week"].astype(int)
+
+# Sort Singapore flu data by ISO year and week and interpolate counts
+flu = flu.sort_values(["iso_year", "iso_week"])
+for col in ["inf_all", "inf_a", "inf_b"]:
+    if col in flu.columns:
+        flu[col] = flu[col].interpolate(method="linear", limit_direction="both")
 
 weather["iso_year"] = pd.to_numeric(weather["iso_year"], errors="coerce")
 weather["iso_week"] = pd.to_numeric(weather["iso_week"], errors="coerce")
