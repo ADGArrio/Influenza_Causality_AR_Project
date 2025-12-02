@@ -1,5 +1,11 @@
 ShockVariable,CumulativeImpact
-relative_humidity,0.012564
-wind_speed,0.045096
-inf_all_log,0.038545
-temperature,0.220819
+precipitation,0.010092
+precipitation_24_hour,0.009526
+LOG_INF_A,0.027105
+dew_point_temperature,0.009526
+relative_humidity,0.033242
+wind_speed,0.027535
+wet_bulb_temperature,0.012135
+temperature,0.235837
+sea_level_pressure,0.056821
+visibility,0.010694

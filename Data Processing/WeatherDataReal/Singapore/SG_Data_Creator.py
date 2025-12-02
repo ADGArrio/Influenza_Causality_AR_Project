@@ -7,7 +7,7 @@ import numpy as np
 # -----------------------------------------------------
 
 weather_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Raw Data/Singapore/singapore_weather_weekly_last25yrs.csv"
-flu_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Raw Data/VIW_FNT_Cleaned.csv"
+flu_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Raw Data/Final_FluNet.csv"
 
 weather = pd.read_csv(weather_path)
 flu = pd.read_csv(flu_path)
