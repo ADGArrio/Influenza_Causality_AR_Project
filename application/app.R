@@ -28,8 +28,6 @@ if (!require("gifski")) {
   install.packages("gifski")
 }
 
-
-
 library(shiny)
 library(ggplot2)
 library(wesanderson)
@@ -62,7 +60,7 @@ ui <- fluidPage(
       plotOutput("outputPlot"),
       plotOutput("grangerPlot"),
       imageOutput("irfPlot"),
-      plotOutput("irmcumPlot")
+      # plotOutput("irmcumPlot")
     )
   )
 )
@@ -116,7 +114,7 @@ server <- function(input, output) {
         theme_minimal()
 
 
-
+    # Animated IRF line graph showing impact over horizons for each variable's shock
     irf_data_df_long <- irf_data %>%
     pivot_longer(
       cols = -Horizon,
@@ -124,28 +122,28 @@ server <- function(input, output) {
       values_to = "Impact"
     )
 
-    plot_irf <- ggplot(irf_data_df_long, aes(x = Horizon, y = Impact, color = Shock, group = Shock)) +
-      geom_line(size = 1) +
-      geom_point(size = 2) +
-      labs(title = "Impulse Response Function",
-          subtitle = "Horizon: {frame_along}",
-          x = "Horizon",
-          y = "Impact") +
-      transition_reveal(Horizon)
+    plot_irf <- ggplot(irf_data_df_long, aes(x = Shock, y = Impact, fill = Shock)) +
+    geom_col() +
+    labs(title = "Impulse Response Function (Bar Animation)",
+         subtitle = "Horizon: {frame_along}",
+         x = "Shock Variable",
+         y = "Impact") +
+    transition_states(Horizon, transition_length = 2, state_length = 1) + # animate by Horizon
+    ease_aes('cubic-in-out')
 
-    output$irfPlot <- renderImage({
-      # animate on the fly and return as image
-      outfile <- tempfile(fileext = ".gif")
-      animate(plot_irf,
-              renderer = gifski_renderer(outfile),
-              fps = 20,
-              width = 900,
-              height = 600)
-      list(src = outfile,
-          contentType = "image/gif",
-          width = 900,
-          height = 600)
-    }, deleteFile = TRUE)
+  output$irfPlot <- renderImage({
+    # animate on the fly and return as image
+    outfile <- tempfile(fileext = ".gif")
+    animate(plot_irf,
+            renderer = gifski_renderer(outfile),
+            fps = 10,       # slower for bars
+            width = 900,
+            height = 600)
+    list(src = outfile,
+         contentType = "image/gif",
+         width = 900,
+         height = 600)
+  }, deleteFile = TRUE)
 
     # Cumulative IRM bar graph that shows total impact all horizons for 
     # each variable and its absolute impact on influenza variable
