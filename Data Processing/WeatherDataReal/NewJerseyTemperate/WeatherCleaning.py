@@ -207,5 +207,5 @@ nan_summary = pd.DataFrame({
 print("\nNaN summary per column:")
 print(nan_summary)
 
-weekly.to_csv("singapore_weather_weekly_last25yrs.csv", index=False)
-nan_summary.to_csv("singapore_weather_weekly_last25yrs_nan_summary.csv")
+weekly.to_csv("newjersey_weather_weekly_last25yrs.csv", index=False)
+nan_summary.to_csv("newjersey_weather_weekly_last25yrs_nan_summary.csv")
