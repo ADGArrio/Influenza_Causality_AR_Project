@@ -718,34 +718,53 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 
 	// --- F-statistic and p-value ---
 
-	// q = number of restrictions = number of dropped coefficients = p (one per lag of cause variable)
-	q := float64(p)
-	// k = number of parameters in unrestricted model
-	k := float64(mUnrestricted)
-	dof := float64(Treg) - k
+	q := float64(p)             // number of restrictions
+	k := float64(mUnrestricted) // parameters in unrestricted model
+	dof := float64(Treg) - k    // denominator degrees of freedom
+
 	if dof <= 0 {
 		return nil, fmt.Errorf("insufficient degrees of freedom: %f", dof)
 	}
 
-	fStatistic := ((rssRestricted - rssUnrestricted) / q) / (rssUnrestricted / dof)
-
-	// F-distribution p-value
-	fDist := distuv.F{
-		D1: q,
-		D2: dof,
+	// Protect against numerical issues:
+	// In theory rssRestricted >= rssUnrestricted, but due to floating point
+	// we can get a tiny negative difference.
+	num := rssRestricted - rssUnrestricted
+	if num < 0 {
+		num = 0 // clamp to zero
 	}
-	pValue := 1.0 - fDist.CDF(fStatistic)
 
-	// Edge cases
-	if math.IsNaN(fStatistic) || math.IsInf(fStatistic, 0) {
+	den := rssUnrestricted / dof
+	var fStatistic float64
+	var pValue float64
+
+	if den <= 0 || num == 0 {
+		// If the unrestricted RSS is zero or the difference is zero/negative,
+		// there's no evidence that the extra lags matter.
 		fStatistic = 0
-		pValue = 1.0
+		pValue = 1
+	} else {
+		fStatistic = (num / q) / den
+
+		// Guard before calling F.CDF: F is only defined for x >= 0.
+		if fStatistic <= 0 || math.IsNaN(fStatistic) || math.IsInf(fStatistic, 0) {
+			fStatistic = 0
+			pValue = 1
+		} else {
+			fDist := distuv.F{
+				D1: q,
+				D2: dof,
+			}
+			pValue = 1.0 - fDist.CDF(fStatistic)
+		}
 	}
+
+	// Final sanity clamp on pValue
 	if pValue < 0 {
 		pValue = 0
 	}
 	if pValue > 1 {
-		pValue = 1.0
+		pValue = 1
 	}
 
 	result := &GrangerCausalityResult{

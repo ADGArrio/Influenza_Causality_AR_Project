@@ -17,27 +17,24 @@ func main() {
 	var filename string
 	switch country {
 	case "Singapore":
-		filename = "Singapore/SG_Training_Data_transformed.csv"
-	case "India":
-		filename = "India_Training_Data.csv"
-	case "USA":
-		filename = "USA_Training_Data.csv"
-	case "China":
-		filename = "China_Training_Data.csv"
+		filename = "Singapore/SG_Training_Data_INF_"
+	case "Qatar":
+		filename = "Qatar/Qatar_Training_Data_INF_"
 	default:
-		panic("Unsupported country: " + country + ". Options: India, USA, China")
+		panic("Unsupported country: " + country + ". Options: Singapore, Qatar")
 	}
 
-	// influenzaType := os.Args[2]
-	// var influenzaVarIndex int
-	// switch influenzaType {
-	// case "A":
-	// 	influenzaVarIndex = 0
-	// case "B":
-	// 	influenzaVarIndex = 1
+	influenzaType := os.Args[2]
+	var influenzaVarIndex string
+	switch influenzaType {
+	case "A":
+		influenzaVarIndex = "A_transformed.csv"
+	case "B":
+		influenzaVarIndex = "B_transformed.csv"
+	}
 
 	// 1. Load CSV into TimeSeries
-	ts, err := LoadCSVToTimeSeries("../Files/Final_Training_Data/" + filename)
+	ts, err := LoadCSVToTimeSeries("../Files/Final_Training_Data/" + filename + influenzaVarIndex)
 	if err != nil {
 		panic(err)
 	}
@@ -47,7 +44,7 @@ func main() {
 
 	// 2. Set up VAR spec
 	spec := ModelSpec{
-		Lags:          5,
+		Lags:          6,
 		Deterministic: DetConst, // or DetConstTrend, etc.
 		HasExogenous:  false,
 	}
