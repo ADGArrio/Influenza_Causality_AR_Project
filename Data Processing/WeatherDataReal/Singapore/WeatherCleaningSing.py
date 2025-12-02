@@ -4,7 +4,7 @@ import numpy as np
 # -----------------------------
 # 0. Config
 # -----------------------------
-file_path = "./GHCNh_USW00014734_por.psv"
+file_path = "./GHCNh_SNI0000WSSS_por.psv"
 
 # Only keep columns we actually use
 usecols = [
