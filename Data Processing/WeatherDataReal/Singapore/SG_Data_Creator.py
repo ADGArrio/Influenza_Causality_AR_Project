@@ -6,7 +6,7 @@ import numpy as np
 # 1. LOAD DATA
 # -----------------------------------------------------
 
-weather_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Data Processing/WeatherDataReal/Singapore/singapore_weather_weekly_last25yrs.csv"
+weather_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Raw Data/Singapore/singapore_weather_weekly_last25yrs.csv"
 flu_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Raw Data/VIW_FNT_Cleaned.csv"
 
 weather = pd.read_csv(weather_path)
@@ -29,7 +29,6 @@ print("Flu cols:", flu.columns.tolist())
 
 DROP_COLS = [
     "wind_gust",
-    "pressure_3hr_change",
     "station_id",
     "wind_dir",
     "wind_dir_deg",
@@ -44,8 +43,6 @@ likely_relevant = [
     "iso_week",
     "relative_humidity",
     "wind_speed",
-    "visibility",
-    "dew_point_temperature",
     "temperature",
     "iso_year"
 ]
@@ -57,7 +54,7 @@ if "iso_year" in weather.columns and "iso_week" in weather.columns:
     weather = weather.sort_values(["iso_year", "iso_week"])
 
 # Interpolate weather variables to fill small gaps
-for col in ["temperature", "relative_humidity", "wind_speed", "dew_point_temperature", "visibility"]:
+for col in ["temperature", "relative_humidity", "wind_speed"]:
     if col in weather.columns:
         weather[col] = weather[col].interpolate(method="linear", limit_direction="both")
 
@@ -67,7 +64,6 @@ print("Weather after cleaning:", weather.columns.tolist())
 # -----------------------------------------------------
 # 3. ALIGN MERGING KEYS USING ISO WEEK
 # -----------------------------------------------------
-
 
 flu["iso_year"] = pd.to_numeric(flu["iso_year"], errors="coerce")
 flu["iso_week"] = pd.to_numeric(flu["iso_week"], errors="coerce")
@@ -106,6 +102,23 @@ merged = pd.merge(
 
 print("Merged shape:", merged.shape)
 
+# -----------------------------------------------------
+# REMOVE DATE/TIME COLUMNS (NOT USED FOR VAR)
+# -----------------------------------------------------
+DATE_COLS = [
+    "iso_weekstartdate",
+    "mmwr_weekstartdate",
+    "mmwr_year",
+    "mmwr_week",
+    "isoyw",
+    "mmwryw",
+    "iso_year",
+    "iso_week"
+]
+
+merged = merged.drop(columns=[c for c in DATE_COLS if c in merged.columns])
+print("Removed date/time columns. Remaining cols:", merged.columns.tolist())
+
 # %%
 # -----------------------------------------------------
 # 4. APPLY LOG TRANSFORMATIONS
@@ -138,7 +151,7 @@ for col in FLU_COUNT_COLS:
     merged[f"{col}_diff"] = merged[col].diff()
 
 KEEP_COLS = [
-    "iso_year", "iso_week",
+    #"iso_year", "iso_week",
 
     # Flu (use only log-transformed total flu)
     "inf_all_log",
@@ -146,9 +159,7 @@ KEEP_COLS = [
     # Weather variables
     "temperature",
     "relative_humidity",
-    "wind_speed",
-    "dew_point_temperature",
-    "visibility"
+    "wind_speed"
 ]
 
 merged = merged[KEEP_COLS]
@@ -159,7 +170,7 @@ print("Final columns:", merged.columns.tolist())
 # -----------------------------------------------------
 # 6. SAVE OUTPUT TO CSV
 # -----------------------------------------------------
-output_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/Singapore/SG_Training_Data_With_ExtraCols.csv"
+output_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/Singapore/SG_Training_Data.csv"
 merged.to_csv(output_path, index=False)
 print(f"Saved merged dataset to: {output_path}")
 

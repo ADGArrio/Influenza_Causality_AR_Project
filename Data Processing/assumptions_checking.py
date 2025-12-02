@@ -177,7 +177,7 @@ def running_all_checks(country_name, country_path):
 india_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/India_Training_Data.csv"
 china_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/China_Training_Data.csv"
 usa_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/USA_Training_Data.csv"
-sg_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Data Processing/WeatherDataReal/Singapore/SG_Training_Dataset.csv"
+sg_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/Singapore/SG_Training_Data_With_ExtraCols.csv"
 
 # %% Running All Checks
 running_all_checks("India", india_path)
