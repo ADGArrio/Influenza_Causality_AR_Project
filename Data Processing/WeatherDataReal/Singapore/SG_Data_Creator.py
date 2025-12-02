@@ -34,7 +34,6 @@ DROP_COLS = [
     "wind_dir",
     "wind_dir_deg",
     "dew_point",
-    "visibility",
     "precipitation",
 ]
 
@@ -45,6 +44,7 @@ likely_relevant = [
     "iso_week",
     "relative_humidity",
     "wind_speed",
+    "visibility",
     "dew_point_temperature",
     "temperature",
     "iso_year"
@@ -57,7 +57,7 @@ if "iso_year" in weather.columns and "iso_week" in weather.columns:
     weather = weather.sort_values(["iso_year", "iso_week"])
 
 # Interpolate weather variables to fill small gaps
-for col in ["temperature", "relative_humidity", "wind_speed", "dew_point_temperature"]:
+for col in ["temperature", "relative_humidity", "wind_speed", "dew_point_temperature", "visibility"]:
     if col in weather.columns:
         weather[col] = weather[col].interpolate(method="linear", limit_direction="both")
 
@@ -146,7 +146,9 @@ KEEP_COLS = [
     # Weather variables
     "temperature",
     "relative_humidity",
-    "wind_speed"
+    "wind_speed",
+    "dew_point_temperature",
+    "visibility"
 ]
 
 merged = merged[KEEP_COLS]
@@ -157,7 +159,7 @@ print("Final columns:", merged.columns.tolist())
 # -----------------------------------------------------
 # 6. SAVE OUTPUT TO CSV
 # -----------------------------------------------------
-output_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Data Processing/WeatherDataReal/Singapore/SG_Training_Dataset.csv"
+output_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/Singapore/SG_Training_Data_With_ExtraCols.csv"
 merged.to_csv(output_path, index=False)
 print(f"Saved merged dataset to: {output_path}")
 
