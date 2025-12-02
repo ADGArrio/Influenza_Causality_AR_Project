@@ -31,7 +31,9 @@ ui <- fluidPage(
     ),
     
     mainPanel(
-      plotOutput("outputPlot") 
+      plotOutput("outputPlot"),
+      plotOutput("grangerPlot"),
+      plotOutput("irfPlot")
     )
   )
 )
@@ -50,17 +52,21 @@ server <- function(input, output) {
     run_result <- system(paste("./application ", as.character(country)), intern = TRUE)
     print(run_result)  # For debugging, to see runtime output
     
-    # Read the CSV file
-    data <- read.csv("../Files/output/output.csv")
+    # Read the CSV files
+    forcast_data <- read.csv("../Files/Output/forcast_results.csv")
+    granger_data <- read.csv("../Files/Output/granger_results.csv")
+    irf_data <- read.csv("../Files/Output/irf_results.csv")
+
 
     # Add a Week variable if not present
-    data$Week <- seq_len(nrow(data))
+    forcast_data$Week <- seq_len(nrow(forcast_data))
 
     # Reshape data for plotting
     library(reshape2)
-    data_long <- melt(data, id.vars = "Week", measure.vars = c("inf_a_log_diff", "inf_b_log_diff"),
+    data_long <- melt(forcast_data, id.vars = "Week", measure.vars = c("inf_a_log_diff", "inf_b_log_diff"),
                       variable.name = "Virus", value.name = "LogDiff")
-
+    
+    # TODO: last 30 day, next 10 - pediction
     # Plot only Influenza A and B log diffs
     plot <- ggplot(data_long, aes(x = Week, y = LogDiff, color = Virus)) +
       geom_line(size = 1) +
@@ -71,9 +77,34 @@ server <- function(input, output) {
            color = "Virus") +
       theme_minimal()
 
+    # TODO Make cooler
+    # irf results into bar chart
+    plot_irf <- ggplot(irf_data, aes(x = ShockVariable, y = CumulativeImpact, fill = ShockVariable)) +
+      geom_bar(stat = "identity") +
+      labs(title = paste("Impulse Response Function Results in", country),
+           x = "Variable",
+           y = "Impact") +
+      theme_minimal()
+
+    # TODO Make cooler
+    # granger causality results
+    plot_granger <- ggplot(granger_data, aes(x = CauseVar, y = FStatistic, fill = CauseVar)) +
+      geom_bar(stat = "identity") +
+      labs(title = paste("Granger Causality Test Results in", country),
+           x = "Variable",
+           y = "F-Statistic") +
+      theme_minimal()
+    
+
     # Render the plot in the Shiny app
     output$outputPlot <- renderPlot({
       plot
+    })
+    output$grangerPlot <- renderPlot({
+      plot_granger
+    })
+    output$irfPlot <- renderPlot({
+      plot_irf
     })
   })
 }

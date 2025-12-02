@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distuv"
 )
@@ -202,6 +203,70 @@ func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
 	}
 
 	return irf, nil
+}
+
+// Run IRF for all variables to look for changes in varible var, then compile results
+// of how much each varible changed var during its shock into a map
+func (rf *ReducedFormVAR) RunIRFAnalysis(varIndex int, horizon int) (map[int]float64, error) {
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
+
+	K, _ := rf.A[0].Dims()
+	if varIndex < 0 || varIndex >= K {
+		return nil, fmt.Errorf("varIndex must be between 0 and %d", K-1)
+	}
+
+	results := make(map[int]float64)
+	for shockIdx := 0; shockIdx < K; shockIdx++ {
+		irfMat, err := rf.IRF(horizon, shockIdx)
+		if err != nil {
+			return nil, fmt.Errorf("IRF failed for shockIdx %d: %v", shockIdx, err)
+		}
+		// Sum absolute responses of varIndex over the horizon
+		sum := 0.0
+		for h := 0; h < horizon; h++ {
+			sum += math.Abs(irfMat.At(h, varIndex))
+		}
+		results[shockIdx] = sum
+	}
+	return results, nil
+}
+
+func (rf *ReducedFormVAR) OutputIRFAnalysisToCSV(path string, analysis map[int]float64, varNames []string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	// Initialize a new CSV writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush() // Ensure all buffered data is written
+
+	// Write header
+	header := []string{"ShockVariable", "CumulativeImpact"}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Write data rows
+	for shockIdx, impact := range analysis {
+		var shockVarName string
+		if len(varNames) == len(analysis) {
+			shockVarName = varNames[shockIdx]
+		}
+		record := []string{
+			shockVarName,
+			fmt.Sprintf("%f", impact),
+		}
+		if err := writer.Write(record); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (rf *ReducedFormVAR) OutputForecastsToCSV(path string, fc *mat.Dense, varNames []string) error {
@@ -417,7 +482,6 @@ func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationO
 	return rf, nil
 }
 
-
 // GrangerCausality tests whether causeIdx Granger-causes effectIdx
 // Returns the F-statistic and p-value
 func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx int) (*GrangerCausalityResult, error) {
@@ -624,3 +688,51 @@ func (rf *ReducedFormVAR) GrangerCausalityMatrix(ts *TimeSeries) ([][]*GrangerCa
 	return results, nil
 }
 
+// This function takes in the created Granger Matrix and outputs it to a CSV file with
+// the columns: CauseVar, EffectVar, FStatistic, PValue, Lags, Significant
+func (rf *ReducedFormVAR) OutputGrangerMatrixToCSV(path string, gcMatrix [][]*GrangerCausalityResult, varNames []string) error {
+	file, err := os.Create(path)
+
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	header := []string{"CauseVar", "EffectVar", "FStatistic", "PValue", "Lags", "Significant"}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	K := len(varNames)
+
+	// Write data rows
+	for i := 0; i < K; i++ {
+		for j := 0; j < K; j++ {
+			if i == j {
+				continue // Skip self-causality
+			}
+			result := gcMatrix[i][j]
+			if result == nil {
+				continue
+			}
+			record := []string{
+				result.CauseVar,
+				result.EffectVar,
+				fmt.Sprintf("%f", result.FStatistic),
+				fmt.Sprintf("%f", result.PValue),
+				fmt.Sprintf("%d", result.Lags),
+				fmt.Sprintf("%t", result.Significant),
+			}
+			if err := writer.Write(record); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
