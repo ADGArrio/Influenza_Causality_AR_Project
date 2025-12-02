@@ -67,4 +67,12 @@ func main() {
 
 	// 6. Prints Summary
 	rf.Summary(ts)
+
+	// 7. Granger Causality Tests
+	fmt.Println("\nPerforming Granger Causality Analysis...")
+	grangerResults, err := rf.GrangerCausalityMatrix(ts)
+	if err != nil {
+		panic(err)
+	}
+	PrintGrangerCausality(grangerResults, ts.VarNames)
 }
