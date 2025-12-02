@@ -1,0 +1,12 @@
+Assumption Check Report
+Source file: /Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Data Processing/WeatherDataReal/Singapore/SG_Training_Dataset.csv
+
+[Stationarity] iso_year appears NON-stationary (ADF p=0.1468)
+[Linearity] iso_year shows nonlinearity (RESET p=0.0009)
+[Linearity] iso_week shows nonlinearity (RESET p=0.0000)
+[Variance] iso_year shows time-varying variance (ARCH p=0.0000)
+[Variance] iso_week shows time-varying variance (ARCH p=0.0000)
+[Variance] inf_all_log shows time-varying variance (ARCH p=0.0000)
+[Variance] temperature shows time-varying variance (ARCH p=0.0000)
+[Variance] relative_humidity shows time-varying variance (ARCH p=0.0000)
+[Variance] wind_speed shows time-varying variance (ARCH p=0.0000)

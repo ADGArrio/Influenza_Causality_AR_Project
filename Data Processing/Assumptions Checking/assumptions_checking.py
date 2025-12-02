@@ -41,6 +41,7 @@ def check_stationarity(df, alpha=0.05, issues=None):
             if issues is not None:
                 issues.append(f"[Stationarity] {col} appears NON-stationary (ADF p={p_value:.4f})")
 
+# %%
 # --------------------------------------------------------------------
 # Homoscedasticity & residual autocorrelation
 # --------------------------------------------------------------------
@@ -176,6 +177,7 @@ def running_all_checks(country_name, country_path):
 india_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/India_Training_Data.csv"
 china_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/China_Training_Data.csv"
 usa_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Files/Final_Training_Data/USA_Training_Data.csv"
+sg_path = "/Users/adgarrio/go/src/Semester Project/Influenza_Causality_AR_Project/Data Processing/WeatherDataReal/Singapore/SG_Training_Dataset.csv"
 
 # %% Running All Checks
 running_all_checks("India", india_path)
@@ -186,6 +188,10 @@ print("China checks done.")
 
 running_all_checks("USA", usa_path)
 print("USA checks done.")
+
+# %%
+running_all_checks("Singapore", sg_path)
+print("Singapore checks done.")
 
 # %% 
 
