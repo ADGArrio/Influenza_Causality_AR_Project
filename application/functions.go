@@ -634,14 +634,65 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 	}
 
 	// Fit restricted model via least squares: X_R * beta_R ≈ yEffect
-	var betaRestricted mat.VecDense
-	if err := betaRestricted.SolveVec(XRestricted, yEffect); err != nil {
-		return nil, fmt.Errorf("failed to solve restricted model: %v", err)
+	// Fit restricted model via least squares: X_R * beta_R ≈ yEffect
+	// We mimic the SVD + pseudoinverse fallback used in Estimate().
+	betaRestricted := mat.NewVecDense(mRestricted, nil)
+
+	// First try normal equations: beta = (X'X)^(-1) X'y
+	var xtxR mat.Dense
+	xtxR.Mul(XRestricted.T(), XRestricted)
+
+	var xtxRInv mat.Dense
+	if errInv := xtxRInv.Inverse(&xtxR); errInv == nil {
+		// X'X is invertible: standard OLS
+		var xtyR mat.Dense
+
+		// yEffect is a vector, turn it into a Treg x 1 matrix for the multiplication
+		yMat := mat.NewDense(Treg, 1, nil)
+		for t := 0; t < Treg; t++ {
+			yMat.Set(t, 0, yEffect.AtVec(t))
+		}
+
+		xtyR.Mul(XRestricted.T(), yMat) // (mRestricted x Treg) * (Treg x 1) = (mRestricted x 1)
+
+		var b mat.Dense
+		b.Mul(&xtxRInv, &xtyR) // (mRestricted x mRestricted) * (mRestricted x 1)
+
+		for i := 0; i < mRestricted; i++ {
+			betaRestricted.SetVec(i, b.At(i, 0))
+		}
+	} else {
+		// Fallback: X'X is singular or badly conditioned. Use SVD-based least squares.
+		var svd mat.SVD
+		ok := svd.Factorize(XRestricted, mat.SVDFullU|mat.SVDFullV)
+		if !ok {
+			return nil, fmt.Errorf("restricted OLS failed: X'X singular and SVD factorization failed: %v", errInv)
+		}
+
+		rank := svd.Rank(1e-12)
+
+		if rank == 0 {
+			// Everything is (numerically) zero – minimum-norm solution is beta = 0,
+			// which we already have in betaRestricted (all zeros).
+		} else {
+			// Solve X_R * beta ≈ yEffect in least-squares sense.
+			yMat := mat.NewDense(Treg, 1, nil)
+			for t := 0; t < Treg; t++ {
+				yMat.Set(t, 0, yEffect.AtVec(t))
+			}
+
+			var b mat.Dense // (mRestricted x 1)
+			svd.SolveTo(&b, yMat, rank)
+
+			for i := 0; i < mRestricted; i++ {
+				betaRestricted.SetVec(i, b.At(i, 0))
+			}
+		}
 	}
 
 	// Compute fitted values and RSS for restricted model
 	var yHatRestricted mat.VecDense
-	yHatRestricted.MulVec(XRestricted, &betaRestricted)
+	yHatRestricted.MulVec(XRestricted, betaRestricted)
 
 	var residRestricted mat.VecDense
 	residRestricted.SubVec(yEffect, &yHatRestricted)
