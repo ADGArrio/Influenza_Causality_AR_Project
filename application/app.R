@@ -166,6 +166,7 @@ server <- function(input, output) {
     # granger causality results as a heatmap
     plot_granger <- ggplot(granger_data, aes(x = CauseVar, y = EffectVar, fill = PValue)) +
       geom_tile() +
+      geom_text(aes(label = ifelse(Significant, "Significant", "")), color = "white") +
       scale_fill_gradient(low = "red", high = "yellow") +
       labs(title = paste("Granger Causality Results in", country),
            x = "CauseVar",
