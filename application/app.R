@@ -12,9 +12,32 @@ if (!require("wesanderson")) {
   install.packages("wesanderson")
 }
 
+if (!require("reshape2")) {
+  install.packages("reshape2")
+}
+
+if (!require("tidyverse")) {
+  install.packages("tidyverse")
+}
+
+if (!require("gganimate")) {
+  install.packages("gganimate")
+}
+
+if (!require("gifski")) {
+  install.packages("gifski")
+}
+
+
+
 library(shiny)
 library(ggplot2)
 library(wesanderson)
+library(ggplot2)
+library(gganimate)
+library(tidyverse)
+library(reshape2)
+library(gifski)
 
 ui <- fluidPage(
   titlePanel("Influenza Autoregression Analysis"),
@@ -38,7 +61,8 @@ ui <- fluidPage(
     mainPanel(
       plotOutput("outputPlot"),
       plotOutput("grangerPlot"),
-      plotOutput("irfPlot")
+      imageOutput("irfPlot"),
+      plotOutput("irmcumPlot")
     )
   )
 )
@@ -73,7 +97,6 @@ server <- function(input, output) {
     recent_old_data$Week <- seq_len(nrow(recent_old_data))
 
     # Reshape data for plotting
-    library(reshape2)
     melted_forcast <- melt(forcast_data, id.vars = "Week", measure.vars =
       c(influenza_type))
     melted_recent <- melt(recent_old_data, id.vars = "Week", measure.vars =
@@ -91,21 +114,65 @@ server <- function(input, output) {
             y = "Log-Differenced Influenza Cases",
             color = "Legend") +
         theme_minimal()
-        
-    # irf results into bar chart
-    plot_irf <- ggplot(irf_data, aes(x = ShockVariable, y = CumulativeImpact, fill = ShockVariable)) +
+
+
+
+    irf_data_df_long <- irf_data %>%
+    pivot_longer(
+      cols = -Horizon,
+      names_to = "Shock",
+      values_to = "Impact"
+    )
+
+    plot_irf <- ggplot(irf_data_df_long, aes(x = Horizon, y = Impact, color = Shock, group = Shock)) +
+      geom_line(size = 1) +
+      geom_point(size = 2) +
+      labs(title = "Impulse Response Function",
+          subtitle = "Horizon: {frame_along}",
+          x = "Horizon",
+          y = "Impact") +
+      transition_reveal(Horizon)
+
+    output$irfPlot <- renderImage({
+      # animate on the fly and return as image
+      outfile <- tempfile(fileext = ".gif")
+      animate(plot_irf,
+              renderer = gifski_renderer(outfile),
+              fps = 20,
+              width = 900,
+              height = 600)
+      list(src = outfile,
+          contentType = "image/gif",
+          width = 900,
+          height = 600)
+    }, deleteFile = TRUE)
+
+    # Cumulative IRM bar graph that shows total impact all horizons for 
+    # each variable and its absolute impact on influenza variable
+    irmcum_data <- irf_data %>%
+      select(-Horizon) %>%
+      summarise(across(everything(), sum)) %>%
+      pivot_longer(
+        cols = everything(),
+        names_to = "Variable",
+        values_to = "CumulativeImpact"
+      )
+
+    plot_irmcum <- ggplot(irmcum_data, aes(x = Variable, y = CumulativeImpact, fill = Variable)) +
       geom_bar(stat = "identity") +
-      labs(title = paste("Impulse Response Function Results in", country),
+      labs(title = paste("Cumulative Impulse Response Magnitudes in", country),
            x = "Variable",
-           y = "Impact") +
+           y = "Cumulative Impact") +
       theme_minimal()
 
-    # granger causality results
-    plot_granger <- ggplot(granger_data, aes(x = CauseVar, y = FStatistic, fill = CauseVar)) +
-      geom_bar(stat = "identity") +
-      labs(title = paste("Granger Causality Test Results in", country),
-           x = "Variable",
-           y = "F-Statistic") +
+    # granger causality results as a heatmap
+    plot_granger <- ggplot(granger_data, aes(x = CauseVar, y = EffectVar, fill = PValue)) +
+      geom_tile() +
+      scale_fill_gradient(low = "red", high = "yellow") +
+      labs(title = paste("Granger Causality Results in", country),
+           x = "CauseVar",
+           y = "EffectVar",
+           fill = "PValue") +
       theme_minimal()
     
 
@@ -116,8 +183,8 @@ server <- function(input, output) {
     output$grangerPlot <- renderPlot({
       plot_granger
     })
-    output$irfPlot <- renderPlot({
-      plot_irf
+    output$irmcumPlot <- renderPlot({
+      plot_irmcum
     })
   })
 }

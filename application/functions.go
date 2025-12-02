@@ -207,7 +207,11 @@ func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
 
 // Run IRF for all variables to look for changes in varible var, then compile results
 // of how much each varible changed var during its shock into a map
-func (rf *ReducedFormVAR) RunIRFAnalysis(varIndex int, horizon int) (map[int]float64, error) {
+// varIndex: index of variable to analyze, 0-based
+// horizon: number of periods to compute (h=0, ..., horizon-1)
+// Returns: map[shockIndex] =  impact on varIndex
+func (rf *ReducedFormVAR) RunIRFAnalysis(varIndex int, horizon int) (map[int][]float64, error) {
+	// Check if the model is estimated and varIndex is valid
 	if rf == nil || len(rf.A) == 0 {
 		return nil, fmt.Errorf("VAR model not estimated")
 	}
@@ -217,23 +221,25 @@ func (rf *ReducedFormVAR) RunIRFAnalysis(varIndex int, horizon int) (map[int]flo
 		return nil, fmt.Errorf("varIndex must be between 0 and %d", K-1)
 	}
 
-	results := make(map[int]float64)
+	results := make(map[int][]float64)
 	for shockIdx := 0; shockIdx < K; shockIdx++ {
 		irfMat, err := rf.IRF(horizon, shockIdx)
 		if err != nil {
 			return nil, fmt.Errorf("IRF failed for shockIdx %d: %v", shockIdx, err)
 		}
-		// Sum absolute responses of varIndex over the horizon
-		sum := 0.0
+
+		series := make([]float64, horizon)
 		for h := 0; h < horizon; h++ {
-			sum += math.Abs(irfMat.At(h, varIndex))
+			series[h] = irfMat.At(h, varIndex)
 		}
-		results[shockIdx] = sum
+
+		results[shockIdx] = series
 	}
+
 	return results, nil
 }
 
-func (rf *ReducedFormVAR) OutputIRFAnalysisToCSV(path string, analysis map[int]float64, varNames []string) error {
+func (rf *ReducedFormVAR) OutputIRFAnalysisToCSV(path string, analysis map[int][]float64, varNames []string) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return err
@@ -246,26 +252,37 @@ func (rf *ReducedFormVAR) OutputIRFAnalysisToCSV(path string, analysis map[int]f
 	defer writer.Flush() // Ensure all buffered data is written
 
 	// Write header
-	header := []string{"ShockVariable", "CumulativeImpact"}
+	header := []string{"Horizon"}
+	for shockIdx := range analysis {
+		var varName string
+		if len(varNames) == len(analysis) {
+			varName = varNames[shockIdx]
+		} else {
+			varName = fmt.Sprintf("Var%d", shockIdx+1)
+		}
+		header = append(header, "Shock_in_"+varName)
+	}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
 
+	// Determine horizon from one of the analysis entries
+	var horizon int
+	for _, series := range analysis {
+		horizon = len(series)
+		break
+	}
+
 	// Write data rows
-	for shockIdx, impact := range analysis {
-		var shockVarName string
-		if len(varNames) == len(analysis) {
-			shockVarName = varNames[shockIdx]
-		}
-		record := []string{
-			shockVarName,
-			fmt.Sprintf("%f", impact),
+	for h := 0; h < horizon; h++ {
+		record := []string{fmt.Sprintf("%d", h)}
+		for shockIdx := range analysis {
+			record = append(record, fmt.Sprintf("%f", analysis[shockIdx][h]))
 		}
 		if err := writer.Write(record); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
