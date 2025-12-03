@@ -17,9 +17,9 @@ func main() {
 	var filename string
 	switch country {
 	case "Singapore":
-		filename = "Singapore/SG_Training_Data_INF_"
+		filename = "Singapore/Training_Data_INF_"
 	case "Qatar":
-		filename = "Qatar/Qatar_Training_Data_INF_"
+		filename = "Qatar/Training_Data_INF_"
 	default:
 		panic("Unsupported country: " + country + ". Options: Singapore, Qatar")
 	}
@@ -99,7 +99,12 @@ func main() {
 
 	// 10. Run varible shocking
 	fmt.Println("Performing Variable Shocking Analysis...")
-	shockResults, err := rf.RunIRFAnalysis(1, 12)
+	// Print varibales and their indices
+	for i, varName := range ts.VarNames {
+		fmt.Printf("Variable %d: %s\n", i, varName)
+	}
+	// Run IRF analysis for shocks over 12 periods
+	shockResults, err := rf.RunIRFAnalysis(0, 12)
 	if err != nil {
 		panic(err)
 	}

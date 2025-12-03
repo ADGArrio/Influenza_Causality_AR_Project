@@ -46,7 +46,7 @@ ui <- fluidPage(
       selectInput(
         inputId = "country", # Unique ID for the input
         label = "Select a Country for the analysis:", # Label displayed to the user
-        choices = c("India", "USA", "China") # List of available choices
+        choices = c("Singapore", "Qatar")
       ),
       selectInput(
         inputId = "influenza", # Unique ID for the input
@@ -71,19 +71,22 @@ server <- function(input, output) {
     # Determine the country selected by the user
     country <- input$country
     # If influenza A, use log_diff_a, else log_diff_b
-    influenza_type <- ifelse(input$influenza == "Influenza A", "inf_a_log_diff", "inf_b_log_diff")
+    influenza_type <- ifelse(input$influenza == "Influenza A", "A", "B")
+    influenza_column <- ifelse(input$influenza == "Influenza A", "LOG_INF_A", "LOG_INF_B")
     
     # Compile the Go program
     compile_result <- system("go build", intern = TRUE)
     print(compile_result)  # For debugging, to see compile output
     
     # Run the compiled Go program
-    run_result <- system(paste("./application ", as.character(country)), intern = TRUE)
+    run_result <- system(paste("./application ", as.character(country), " ", as.character(influenza_type), sep = ""),
+      intern = TRUE)
     print(run_result)  # For debugging, to see runtime output
     
     # Read the CSV files
-    old_data <- read.csv(paste0("../Files/Final_Training_Data/", country, "_Training_Data.csv"))
-    forcast_data <- read.csv("../Files/Output/forcast_results.csv")
+    old_data <- read.csv(paste0("../Files/Final_Training_Data/", country, "/",
+      "Training_Data_INF_", influenza_type, "_transformed.csv"))
+    forcast_data <- read.csv("../Files/Output/forecast_results.csv")
     granger_data <- read.csv("../Files/Output/granger_results.csv")
     irf_data <- read.csv("../Files/Output/irf_results.csv")
 
@@ -96,9 +99,9 @@ server <- function(input, output) {
 
     # Reshape data for plotting
     melted_forcast <- melt(forcast_data, id.vars = "Week", measure.vars =
-      c(influenza_type))
+      c(influenza_column))
     melted_recent <- melt(recent_old_data, id.vars = "Week", measure.vars =
-      c(influenza_type))
+      c(influenza_column))
 
     plot <- ggplot() +
         geom_line(data = melted_recent, aes(x = Week, y = value, color = variable),
@@ -125,11 +128,12 @@ server <- function(input, output) {
     plot_irf <- ggplot(irf_data_df_long, aes(x = Shock, y = Impact, fill = Shock)) +
     geom_col() +
     labs(title = "Impulse Response Function (Bar Animation)",
-         subtitle = "Horizon: {frame_along}",
+         subtitle = "Horizon: {closest_state}",
          x = "Shock Variable",
-         y = "Impact") +
+         y = "Impact on Influenza") +
     transition_states(Horizon, transition_length = 2, state_length = 1) + # animate by Horizon
-    ease_aes('cubic-in-out')
+    ease_aes('cubic-in-out') +
+    theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1))
 
   output$irfPlot <- renderImage({
     # animate on the fly and return as image
@@ -166,13 +170,15 @@ server <- function(input, output) {
     # granger causality results as a heatmap
     plot_granger <- ggplot(granger_data, aes(x = CauseVar, y = EffectVar, fill = PValue)) +
       geom_tile() +
-      geom_text(aes(label = ifelse(Significant, "Significant", "")), color = "white") +
+      geom_text(aes(label = ifelse(Significant, "GC", "")), color = "white") +
       scale_fill_gradient(low = "red", high = "yellow") +
       labs(title = paste("Granger Causality Results in", country),
            x = "CauseVar",
            y = "EffectVar",
            fill = "PValue") +
-      theme_minimal()
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1))
+
     
 
     # Render the plot in the Shiny app

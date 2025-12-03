@@ -260,7 +260,7 @@ func (rf *ReducedFormVAR) OutputIRFAnalysisToCSV(path string, analysis map[int][
 		} else {
 			varName = fmt.Sprintf("Var%d", shockIdx+1)
 		}
-		header = append(header, "Shock_in_"+varName)
+		header = append(header, "Shock_"+varName)
 	}
 	if err := writer.Write(header); err != nil {
 		return err
