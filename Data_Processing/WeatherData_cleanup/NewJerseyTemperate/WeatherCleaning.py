@@ -4,6 +4,9 @@ import numpy as np
 # -----------------------------
 # 0. Config
 # -----------------------------
+
+# Station pipe separated values file is not included in the repository due to size. Please refer to NOAA website to download station files
+# Station number is in the PSV file name though, so use that if reproducing results
 file_path = "./GHCNh_USW00014734_por.psv"
 
 # Only keep columns we actually use
@@ -42,10 +45,10 @@ usecols = [
 ]
 
 # -----------------------------
-# 1. Read in chunks, keep last ~25 years (Year >= 2000)
+# 1. Read in chunks, keep last ~25 years (Year >= 2000), files are too big otherwise
 # -----------------------------
 chunks = []
-chunksize = 200_000  # tweak if needed
+chunksize = 200_000  # tweak according to memory needs 
 
 for chunk in pd.read_csv(
     file_path,
@@ -54,7 +57,7 @@ for chunk in pd.read_csv(
     low_memory=False,
     chunksize=chunksize,
 ):
-    # Keep only recent years to reduce memory
+    # Keep only recent years to reduce even more memory
     chunk["Year"] = pd.to_numeric(chunk["Year"], errors="coerce")
     chunk = chunk[chunk["Year"] >= 2000]
 
