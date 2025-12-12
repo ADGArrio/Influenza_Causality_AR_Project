@@ -25,8 +25,7 @@ import (
 func (rf *ReducedFormVAR) Spec() ModelSpec { return rf.Model }
 
 // Returns coefficient matrices
-func (rf *ReducedFormVAR) Phi() []*mat.Dense { re
-	turn rf.A }
+func (rf *ReducedFormVAR) Phi() []*mat.Dense { return rf.A }
 
 // Returns error covariance matrix
 func (rf *ReducedFormVAR) CovU() *mat.SymDense { return rf.SigmaU }
@@ -335,7 +334,7 @@ func (rf *ReducedFormVAR) OutputForecastsToCSV(path string, fc *mat.Dense, varNa
 // ts: TimeSeries struct containing the data
 // spec: ModelSpec struct containing the model specification
 // opts: EstimationOptions struct containing estimation options
-// Returns: ReducedFormVAR struct containing the estimated model 
+// Returns: ReducedFormVAR struct containing the estimated model
 func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationOptions) (*ReducedFormVAR, error) {
 	if ts == nil || ts.Y == nil {
 		return nil, fmt.Errorf("time series data not provided")
