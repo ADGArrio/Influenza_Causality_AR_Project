@@ -104,7 +104,6 @@ type VARModel struct {
 	GrangerPValues map[string]map[string]float64 // Map[CauseVar][EffectVar] = PValue
 }
 
-
 // --- GRANGER CAUSALITY TEST ---
 
 // GrangerCausalityResult holds the result of a Granger causality test
@@ -115,4 +114,32 @@ type GrangerCausalityResult struct {
 	PValue      float64 // P-value
 	Lags        int     // Number of lags used
 	Significant bool    // True if p-value < 0.05
+}
+
+type BootstrapOptions struct {
+	// Number of bootstrap replications (e.g., 500–2000)
+	NReplications int
+
+	// Horizon for IRFs (number of periods h = 0,...,H-1)
+	Horizon int
+
+	// Confidence level alpha (e.g., 0.05 for 95% CI)
+	Alpha float64
+
+	// RNG seed (if 0, time-based seed is used)
+	Seed int64
+}
+
+// IRFBootstrapResult stores point estimates and CI bands for one shock.
+type IRFBootstrapResult struct {
+	ShockIndex int     // which variable was shocked
+	Horizon    int     // number of IRF periods
+	Alpha      float64 // significance level (e.g. 0.05)
+
+	// Point estimate IRF (horizon x K), from original rf.IRF(...)
+	Point *mat.Dense
+
+	// Lower and Upper CI bands (same dimensions as Point)
+	Lower *mat.Dense
+	Upper *mat.Dense
 }

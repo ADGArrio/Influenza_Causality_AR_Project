@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 
 	"gonum.org/v1/gonum/mat"
@@ -860,4 +861,186 @@ func (rf *ReducedFormVAR) OutputGrangerMatrixToCSV(path string, gcMatrix [][]*Gr
 	}
 
 	return nil
+}
+
+// Bootstrapping below
+
+// computeResiduals recomputes residuals U (T-p x K) from a fitted VAR and data ts.
+// It uses the same deterministic structure as Estimate().
+func (rf *ReducedFormVAR) computeResiduals(ts *TimeSeries) (*mat.Dense, error) {
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
+
+	T, K := ts.Y.Dims()
+	p := rf.Model.Lags
+	if T <= p {
+		return nil, fmt.Errorf("need at least p+1 observations: p = %d, T = %d", p, T)
+	}
+
+	hasConst := rf.Model.Deterministic == DetConst || rf.Model.Deterministic == DetConstTrend
+	hasTrend := rf.Model.Deterministic == DetTrend || rf.Model.Deterministic == DetConstTrend
+
+	detCols := 0
+	if hasConst {
+		detCols++
+	}
+	if hasTrend {
+		detCols++
+	}
+
+	// residuals for rows t = p,...,T-1  => T-p rows
+	Treg := T - p
+	U := mat.NewDense(Treg, K, nil)
+
+	for t := p; t < T; t++ {
+		timeIndex := float64(t + 1) // matches Estimate's time index convention
+
+		for eq := 0; eq < K; eq++ {
+			val := 0.0
+
+			// deterministic terms
+			if detCols > 0 && rf.C != nil {
+				detIdx := 0
+				if hasConst {
+					val += rf.C.At(eq, detIdx)
+					detIdx++
+				}
+				if hasTrend {
+					val += rf.C.At(eq, detIdx) * timeIndex
+				}
+			}
+
+			// lag terms: sum_{j=1}^p A_j(eq, :) y_{t-j}
+			for j := 1; j <= p; j++ {
+				Aj := rf.A[j-1]
+				srcRow := t - j
+				for k := 0; k < K; k++ {
+					val += Aj.At(eq, k) * ts.Y.At(srcRow, k)
+				}
+			}
+
+			// residual = observed - fitted
+			u := ts.Y.At(t, eq) - val
+			U.Set(t-p, eq, u)
+		}
+	}
+
+	return U, nil
+}
+
+// simulateBootstrapSeries generates a bootstrap sample Y* of the same length as ts,
+// using the fitted VAR coefficients and residuals resU (T-p x K), where each row
+// is a residual vector. We resample rows of resU with replacement.
+func (rf *ReducedFormVAR) simulateBootstrapSeries(
+	ts *TimeSeries,
+	resU *mat.Dense,
+	rng *rand.Rand,
+) (*TimeSeries, error) {
+
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
+
+	T, K := ts.Y.Dims()
+	p := rf.Model.Lags
+	if T <= p {
+		return nil, fmt.Errorf("need at least p+1 observations: p = %d, T = %d", p, T)
+	}
+
+	Treg, kRes := resU.Dims()
+	if Treg != T-p || kRes != K {
+		return nil, fmt.Errorf("residual matrix has wrong shape: got %dx%d, expected %dx%d",
+			Treg, kRes, T-p, K)
+	}
+
+	hasConst := rf.Model.Deterministic == DetConst || rf.Model.Deterministic == DetConstTrend
+	hasTrend := rf.Model.Deterministic == DetTrend || rf.Model.Deterministic == DetConstTrend
+
+	detCols := 0
+	if hasConst {
+		detCols++
+	}
+	if hasTrend {
+		detCols++
+	}
+
+	// Step 1: prepare bootstrap residuals ε*_t for t = p,...,T-1 (T-p rows)
+	epsBoot := mat.NewDense(Treg, K, nil)
+	for i := 0; i < Treg; i++ {
+		// resample residual row index from [0, Treg-1]
+		idx := rng.Intn(Treg)
+		for j := 0; j < K; j++ {
+			epsBoot.Set(i, j, resU.At(idx, j))
+		}
+	}
+
+	// Step 2: simulate Y*, same dimension as original
+	Ystar := mat.NewDense(T, K, nil)
+
+	// Copy the first p observations from original data
+	for t := 0; t < p; t++ {
+		for j := 0; j < K; j++ {
+			Ystar.Set(t, j, ts.Y.At(t, j))
+		}
+	}
+
+	// Simulate t = p,...,T-1
+	for t := p; t < T; t++ {
+		timeIndex := float64(t + 1)
+		epsRow := t - p // index into epsBoot
+
+		for eq := 0; eq < K; eq++ {
+			val := 0.0
+
+			// deterministic terms
+			if detCols > 0 && rf.C != nil {
+				detIdx := 0
+				if hasConst {
+					val += rf.C.At(eq, detIdx)
+					detIdx++
+				}
+				if hasTrend {
+					val += rf.C.At(eq, detIdx) * timeIndex
+				}
+			}
+
+			// lag terms: sum_{j=1}^p A_j(eq,:) y*_{t-j}
+			for j := 1; j <= p; j++ {
+				Aj := rf.A[j-1]
+				srcRow := t - j
+				for k := 0; k < K; k++ {
+					val += Aj.At(eq, k) * Ystar.At(srcRow, k)
+				}
+			}
+
+			// add bootstrap residual
+			val += epsBoot.At(epsRow, eq)
+			Ystar.Set(t, eq, val)
+		}
+	}
+
+	// Preserve time index and variable names
+	times := make([]float64, T)
+	if len(ts.Time) == T {
+		copy(times, ts.Time)
+	} else {
+		// fallback to simple 0,1,2,... if original Time is missing
+		for i := 0; i < T; i++ {
+			times[i] = float64(i)
+		}
+	}
+
+	tsStar := &TimeSeries{
+		Y:        Ystar,
+		Time:     times,
+		VarNames: ts.VarNames,
+	}
+	return tsStar, nil
 }
