@@ -1,16 +1,28 @@
+"""
+Create Top 20 Countries Interpolated Dataset
+
+This script selects the top 20 countries by data quality and applies
+interpolation to fill NaN values in the influenza time series data.
+
+Usage:
+    python create_top20_interpolated.py
+"""
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
-# file paths
-country_ranking_path = '../../../country_ranking_by_nan.csv'
-clean_data_path = '../../../clean_influenza_data.csv'
-output_path = 'top20_countries_interpolated.csv'
+# Get project root (2 levels up from this script)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# File paths relative to project root
+COUNTRY_RANKING_PATH = PROJECT_ROOT / "Files" / "Raw Data" / "country_ranking_by_nan.csv"
+CLEAN_DATA_PATH = PROJECT_ROOT / "Files" / "Raw Data" / "clean_influenza_data.csv"
+OUTPUT_PATH = PROJECT_ROOT / "Files" / "Raw Data" / "top20_countries_interpolated.csv"
 
 # Load country ranking
 print("\n1. Loading country ranking...")
-ranking_df = pd.read_csv(country_ranking_path)
-print(f"   ✓ Loaded ranking for {len(ranking_df)} countries")
+ranking_df = pd.read_csv(COUNTRY_RANKING_PATH)
+print(f"   Loaded ranking for {len(ranking_df)} countries")
 
 # Get top 20 countries
 top20_countries = ranking_df.head(20)[['COUNTRY_CODE', 'COUNTRY_AREA_TERRITORY', 'Data_Quality_Score']].copy()
@@ -21,20 +33,20 @@ for idx, row in top20_countries.iterrows():
 
 # Load clean influenza data
 print(f"\n3. Loading clean influenza data...")
-df = pd.read_csv(clean_data_path)
-print(f"   ✓ Loaded {len(df)} rows")
+df = pd.read_csv(CLEAN_DATA_PATH)
+print(f"   Loaded {len(df)} rows")
 
 # Filter for top 20 countries
 print(f"\n4. Filtering data for top 20 countries...")
 country_codes_top20 = top20_countries['COUNTRY_CODE'].tolist()
 df_top20 = df[df['COUNTRY_CODE'].isin(country_codes_top20)].copy()
-print(f"   ✓ Filtered to {len(df_top20)} rows")
+print(f"   Filtered to {len(df_top20)} rows")
 
 # Convert date column to datetime for proper sorting
 print(f"\n5. Sorting by time (preserving chronological order)...")
 df_top20['ISO_WEEKSTARTDATE'] = pd.to_datetime(df_top20['ISO_WEEKSTARTDATE'])
 df_top20 = df_top20.sort_values(['COUNTRY_CODE', 'ISO_YEAR', 'ISO_WEEK']).reset_index(drop=True)
-print(f"   ✓ Data sorted by country and time")
+print(f"   Data sorted by country and time")
 
 # Count NaNs before interpolation
 nan_before = {
@@ -82,9 +94,9 @@ if total_nan_after > 0:
     print(f"\n9. Applying forward/backward fill for remaining boundary NaNs...")
     for col in inf_columns:
         df_top20[col] = df_top20.groupby('COUNTRY_CODE')[col].transform(
-            lambda x: x.fillna(method='ffill').fillna(method='bfill')
+            lambda x: x.ffill().bfill()
         )
-        # Round to 3 decimal places
+        # Round to whole numbers
         df_top20[col] = df_top20[col].round(0).astype(float)
     
     # Final NaN count
@@ -95,14 +107,14 @@ if total_nan_after > 0:
     }
     total_nan_final = sum(nan_final.values())
     
-    print(f"   ✓ Final NaN count: {total_nan_final}")
+    print(f"   Final NaN count: {total_nan_final}")
     
     # If still NaNs remain (countries with all NaN columns), fill with 0
     if total_nan_final > 0:
         print(f"\n10. Filling remaining NaNs with 0 (isolated values)...")
         for col in inf_columns:
             df_top20[col] = df_top20[col].fillna(0)
-        print(f"    ✓ All NaNs filled")
+        print(f"    All NaNs filled")
 
 # Convert date back to string format for CSV export
 df_top20['ISO_WEEKSTARTDATE'] = df_top20['ISO_WEEKSTARTDATE'].dt.strftime('%Y-%m-%d')
@@ -110,15 +122,15 @@ df_top20['ISO_WEEKSTARTDATE'] = df_top20['ISO_WEEKSTARTDATE'].dt.strftime('%Y-%m
 # Save to CSV
 print(f"\n11. Saving interpolated data...")
 try:
-    df_top20.to_csv(output_path, index=False)
-    print(f"    ✓ Data saved to: {output_path}")
+    df_top20.to_csv(OUTPUT_PATH, index=False)
+    print(f"    Data saved to: {OUTPUT_PATH}")
 except Exception as e:
-    print(f"    ✗ Error saving data: {e}")
+    print(f"    Error saving data: {e}")
 
 # Summary statistics
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("SUMMARY")
-print("="*80)
+print("=" * 80)
 print(f"Total rows in output: {len(df_top20)}")
 print(f"Number of countries: {df_top20['COUNTRY_CODE'].nunique()}")
 print(f"Date range: {df_top20['ISO_WEEKSTARTDATE'].min()} to {df_top20['ISO_WEEKSTARTDATE'].max()}")
@@ -137,7 +149,6 @@ country_summary = df_top20.groupby('COUNTRY_AREA_TERRITORY').agg({
 
 print(country_summary.to_string())
 
-print("\n" + "="*80)
-print("Processing complete! Dataset ready for VAR modeling and Granger causality.")
-print("="*80)
-
+print("\n" + "=" * 80)
+print("Processing complete!")
+print("=" * 80)

@@ -1,23 +1,35 @@
+"""
+FluNet Data Cleaning and Country Ranking by NaN Count
+
+This script processes raw WHO FluNet data, cleans it, and ranks countries 
+by data quality (NaN count). Outputs are saved to Files/Raw Data/.
+
+Usage:
+    python data_rankedbyNaN.py
+"""
 import pandas as pd
 import numpy as np
-import os
+from pathlib import Path
 
-# file paths
-raw_data_path = '../../Files/Flunet/raw_FluNet.csv'
-output_clean_data = '../../../clean_influenza_data.csv'
-output_country_ranking = '../../../country_ranking_by_nan.csv'
+# Get project root (2 levels up from this script)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-print("="*80)
+# File paths relative to project root
+RAW_DATA_PATH = PROJECT_ROOT / "Files" / "Raw Data" / "VIW_FNT.csv"
+OUTPUT_CLEAN_DATA = PROJECT_ROOT / "Files" / "Raw Data" / "clean_influenza_data.csv"
+OUTPUT_COUNTRY_RANKING = PROJECT_ROOT / "Files" / "Raw Data" / "country_ranking_by_nan.csv"
+
+print("=" * 80)
 print("WHO FluNet Data Cleaning and Country Ranking by NaN Count")
-print("="*80)
+print("=" * 80)
 
 # Load the raw data
 print("\n1. Loading raw WHO FluNet data...")
 try:
-    df = pd.read_csv(raw_data_path)
-    print(f"   ✓ Loaded {len(df)} rows and {len(df.columns)} columns")
+    df = pd.read_csv(RAW_DATA_PATH)
+    print(f"   Loaded {len(df)} rows and {len(df.columns)} columns")
 except FileNotFoundError:
-    print(f"   ✗ Error: File not found at {raw_data_path}")
+    print(f"   Error: File not found at {RAW_DATA_PATH}")
     exit(1)
 
 # Select relevant columns
@@ -38,11 +50,11 @@ relevant_columns = [
 # Check if all columns exist
 missing_cols = [col for col in relevant_columns if col not in df.columns]
 if missing_cols:
-    print(f"   ✗ Error: Missing columns in dataset: {missing_cols}")
+    print(f"   Error: Missing columns in dataset: {missing_cols}")
     exit(1)
 
 df_clean = df[relevant_columns].copy()
-print(f"   ✓ Selected {len(relevant_columns)} relevant columns")
+print(f"   Selected {len(relevant_columns)} relevant columns")
 print(f"   Columns: {', '.join(relevant_columns)}")
 
 # Display data info
@@ -92,7 +104,7 @@ country_nan_stats_sorted = country_nan_stats_sorted[[
     'NaN_Percentage', 'Data_Quality_Score'
 ]]
 
-print(f"   ✓ Analyzed {len(country_nan_stats_sorted)} countries")
+print(f"   Analyzed {len(country_nan_stats_sorted)} countries")
 
 # Display top 10 countries with best data quality (lowest NaN count)
 print("\n5. Top 10 Countries with Best Data Quality (Lowest NaN Count):")
@@ -115,23 +127,23 @@ for idx, row in country_nan_stats_sorted.tail(10).iterrows():
 # Save cleaned data
 print("\n7. Saving cleaned data...")
 try:
-    df_clean.to_csv(output_clean_data, index=False)
-    print(f"   ✓ Cleaned data saved to: {output_clean_data}")
+    df_clean.to_csv(OUTPUT_CLEAN_DATA, index=False)
+    print(f"   Cleaned data saved to: {OUTPUT_CLEAN_DATA}")
 except Exception as e:
-    print(f"   ✗ Error saving cleaned data: {e}")
+    print(f"   Error saving cleaned data: {e}")
 
 # Save country ranking
 print("\n8. Saving country ranking...")
 try:
-    country_nan_stats_sorted.to_csv(output_country_ranking, index=False)
-    print(f"   ✓ Country ranking saved to: {output_country_ranking}")
+    country_nan_stats_sorted.to_csv(OUTPUT_COUNTRY_RANKING, index=False)
+    print(f"   Country ranking saved to: {OUTPUT_COUNTRY_RANKING}")
 except Exception as e:
-    print(f"   ✗ Error saving country ranking: {e}")
+    print(f"   Error saving country ranking: {e}")
 
 # Summary statistics
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("SUMMARY STATISTICS")
-print("="*80)
+print("=" * 80)
 print(f"Total countries analyzed: {len(country_nan_stats_sorted)}")
 print(f"\nData Quality Distribution:")
 print(f"  - Excellent (>90% complete): {len(country_nan_stats_sorted[country_nan_stats_sorted['Data_Quality_Score'] > 90])} countries")
@@ -142,8 +154,6 @@ print(f"  - Poor (<50% complete):      {len(country_nan_stats_sorted[country_nan
 print(f"\nAverage Data Quality Score: {country_nan_stats_sorted['Data_Quality_Score'].mean():.2f}%")
 print(f"Median Data Quality Score: {country_nan_stats_sorted['Data_Quality_Score'].median():.2f}%")
 
-print("\n" + "="*80)
-print("Processing complete! Use the country ranking file to select high-quality")
-print("data countries for your VAR model and Granger causality analysis.")
-print("="*80)
-
+print("\n" + "=" * 80)
+print("Processing complete!")
+print("=" * 80)
