@@ -13,7 +13,7 @@ import (
 // This is the main function that runs the VAR analysis for the specified country and influenza type.
 // The function expects two command-line arguments: the country name and the influenza type (A or B).
 // The function will then perform the VAR analysis and output the results to CSV files.
-// There are 14 steps in the whole process, including loading the CSV data, setting up the VAR specification,
+// There are 15 steps in the whole process, including loading the CSV data, setting up the VAR specification,
 // estimating the VAR model, forecasting, impulse response functions (IRFs), outputting the results to CSV files,
 // and running additional analyses like Granger causality and bootstrap IRF analysis.
 
@@ -149,7 +149,7 @@ func main() {
 	fmt.Printf("Computed IRFs with %d replications and horizon %d.\n",
 		bootOpts.NReplications, bootOpts.Horizon)
 
-	// === 14. OUTPUT BOOTSTRAP IRF RESULTS TO CSV ===
+	// 14. OUTPUT BOOTSTRAP IRF RESULTS TO CSV
 	outPath := "../Files/Output/bootstrap_irf_results.csv"
 	err = OutputBootstrapIRFToCSV(outPath, bootIRFs, ts.VarNames)
 	if err != nil {
@@ -158,7 +158,7 @@ func main() {
 
 	fmt.Println("Bootstrap IRF results written to:", outPath)
 
-	// 14. Run Bootstrap Granger Causality Analysis
+	// 15. Run Bootstrap Granger Causality Analysis
 	fmt.Println("     Running Bootstrap Granger Causality      ")
 
 	gbOpts := GrangerBootstrapOptions{
