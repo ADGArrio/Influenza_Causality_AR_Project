@@ -21,7 +21,7 @@ import (
 )
 
 // These functions are for the ReducedFormVAR struct and its methods
-// Returns current Model Spec
+// Returns current Model Spec to see what options were selectedd
 func (rf *ReducedFormVAR) Spec() ModelSpec { return rf.Model }
 
 // Returns coefficient matrices
@@ -30,10 +30,10 @@ func (rf *ReducedFormVAR) Phi() []*mat.Dense { return rf.A }
 // Returns error covariance matrix
 func (rf *ReducedFormVAR) CovU() *mat.SymDense { return rf.SigmaU }
 
-// Forecasat produces multi-step ahead forecases given the historical data of yHist.
+// Forecast produces multi-step ahead forecasts given the historical data of yHist.
 // yHist: T x K (rows: time, cols: variables). Only last p rows are used as lags.
 // steps: number of steps ahead to forecast
-// Returns: Steps xK matrix of forecasts
+// Returns: Steps x K matrix of forecasts
 func (rf *ReducedFormVAR) Forecast(yHist *mat.Dense, steps int) (*mat.Dense, error) {
 	if rf == nil || len(rf.A) == 0 {
 		return nil, fmt.Errorf("VAR model not estimated")
@@ -59,7 +59,6 @@ func (rf *ReducedFormVAR) Forecast(yHist *mat.Dense, steps int) (*mat.Dense, err
 	data := make([]float64, totalRows*K)
 
 	// Gonum.mat stores matrices as a 1d slice at first, so we need to multiply by K to fill out
-	// Can maybe parallelize later?
 	for i := 0; i < p; i++ {
 		for k := 0; k < K; k++ {
 			data[i*K+k] = yHist.At(T-p+i, k)
@@ -241,46 +240,6 @@ func (rf *ReducedFormVAR) RunIRFAnalysis(varIndex int, horizon int) (map[int][]f
 	}
 
 	return results, nil
-}
-
-func (rf *ReducedFormVAR) OutputForecastsToCSV(path string, fc *mat.Dense, varNames []string) error {
-
-	rows, cols := fc.Dims()
-
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Initialize a new CSV writer
-	writer := csv.NewWriter(file)
-	defer writer.Flush() // Ensure all buffered data is written
-
-	// Write header
-	header := make([]string, cols)
-	for j := 0; j < cols; j++ {
-		if len(varNames) == cols {
-			header[j] = varNames[j]
-		} else {
-			header[j] = fmt.Sprintf("Var%d", j+1)
-		}
-	}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	// Write data rows
-	for i := 0; i < rows; i++ {
-		record := make([]string, cols)
-		for j := 0; j < cols; j++ {
-			record[j] = fmt.Sprintf("%f", fc.At(i, j))
-		}
-		if err := writer.Write(record); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Estimate computes the VAR model parameters using OLS
@@ -827,7 +786,7 @@ func (rf *ReducedFormVAR) OutputGrangerMatrixToCSV(path string, gcMatrix [][]*Gr
 	return nil
 }
 
-// Bootstrapping below
+// --- Bootstrapping below ---
 
 // computeResiduals recomputes residuals U (T-p x K) from a fitted VAR and data ts.
 // It uses the same deterministic structure as Estimate().
@@ -935,7 +894,7 @@ func (rf *ReducedFormVAR) simulateBootstrapSeries(
 		detCols++
 	}
 
-	// Step 1: prepare bootstrap residuals ε*_t for t = p,...,T-1 (T-p rows)
+	// Prepare bootstrap residuals ε*_t for t = p,...,T-1 (T-p rows)
 	epsBoot := mat.NewDense(Treg, K, nil)
 	for i := 0; i < Treg; i++ {
 		// resample residual row index from [0, Treg-1]
@@ -945,7 +904,7 @@ func (rf *ReducedFormVAR) simulateBootstrapSeries(
 		}
 	}
 
-	// Step 2: simulate Y*, same dimension as original
+	// Simulate Y*, same dimension as original
 	Ystar := mat.NewDense(T, K, nil)
 
 	// Copy the first p observations from original data

@@ -73,6 +73,7 @@ type ReducedForm interface {
 }
 
 // EstimationOptions contains options like regularization strngth, priors, etc.
+// Added for future expansion and modularity, no use right now
 type EstimationOptions struct {
 	// For standard VAr
 	UseGeneralizedLeastSquares bool

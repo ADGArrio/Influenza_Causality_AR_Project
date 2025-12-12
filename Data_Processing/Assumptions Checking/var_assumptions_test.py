@@ -1,4 +1,9 @@
 """
+Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+Date: Dec 12th 2025
+Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+Class: 02-613 at Caregie Mellon University
+
 VAR Assumptions Testing Script
 
 Tests statistical assumptions for VAR model validity:
