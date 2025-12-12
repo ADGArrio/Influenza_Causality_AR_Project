@@ -6,6 +6,8 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
+	"time"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distuv"
@@ -1043,4 +1045,169 @@ func (rf *ReducedFormVAR) simulateBootstrapSeries(
 		VarNames: ts.VarNames,
 	}
 	return tsStar, nil
+}
+
+// bootstrapQuantile returns the empirical q-quantile of samples (0 <= q <= 1)
+// using linear interpolation between order statistics.
+func bootstrapQuantile(samples []float64, q float64) float64 {
+	n := len(samples)
+	if n == 0 {
+		return math.NaN()
+	}
+
+	tmp := make([]float64, n)
+	copy(tmp, samples)
+	sort.Float64s(tmp)
+
+	if q <= 0 {
+		return tmp[0]
+	}
+	if q >= 1 {
+		return tmp[n-1]
+	}
+
+	pos := q * float64(n-1)
+	idxBelow := int(math.Floor(pos))
+	idxAbove := int(math.Ceil(pos))
+
+	if idxAbove == idxBelow {
+		return tmp[idxBelow]
+	}
+
+	weight := pos - float64(idxBelow)
+	return tmp[idxBelow]*(1.0-weight) + tmp[idxAbove]*weight
+}
+
+// BootstrapIRF performs a residual bootstrap for IRFs for all shock variables.
+// Returns a map[shockIndex]*IRFBootstrapResult, where each result contains
+// the point estimate IRF and lower/upper CI bands.
+func (rf *ReducedFormVAR) BootstrapIRF(
+	ts *TimeSeries,
+	opts BootstrapOptions,
+) (map[int]*IRFBootstrapResult, error) {
+
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
+
+	// Default options if not set
+	if opts.NReplications <= 0 {
+		opts.NReplications = 500
+	}
+	if opts.Horizon <= 0 {
+		opts.Horizon = 12
+	}
+	if opts.Alpha <= 0 || opts.Alpha >= 1 {
+		opts.Alpha = 0.05
+	}
+
+	T, K := ts.Y.Dims()
+	if T <= rf.Model.Lags {
+		return nil, fmt.Errorf("not enough data: T=%d, p=%d", T, rf.Model.Lags)
+	}
+
+	// RNG setup
+	var rng *rand.Rand
+	if opts.Seed != 0 {
+		rng = rand.New(rand.NewSource(opts.Seed))
+	} else {
+		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+
+	H := opts.Horizon
+
+	// 1. Compute original (point estimate) IRFs for each shock variable
+	results := make(map[int]*IRFBootstrapResult, K)
+	// For collecting bootstrap samples: shockIdx -> [h][var][]values
+	shockIRFValues := make(map[int][][][]float64, K)
+
+	for shockIdx := 0; shockIdx < K; shockIdx++ {
+		baseIRF, err := rf.IRF(H, shockIdx)
+		if err != nil {
+			return nil, fmt.Errorf("IRF failed for shock %d on original model: %v", shockIdx, err)
+		}
+
+		res := &IRFBootstrapResult{
+			ShockIndex: shockIdx,
+			Horizon:    H,
+			Alpha:      opts.Alpha,
+			Point:      baseIRF,
+			Lower:      mat.NewDense(H, K, nil),
+			Upper:      mat.NewDense(H, K, nil),
+		}
+		results[shockIdx] = res
+
+		// Set up storage for bootstrap draws
+		vals := make([][][]float64, H)
+		for h := 0; h < H; h++ {
+			vals[h] = make([][]float64, K)
+			for j := 0; j < K; j++ {
+				vals[h][j] = make([]float64, 0, opts.NReplications)
+			}
+		}
+		shockIRFValues[shockIdx] = vals
+	}
+
+	// 2. Compute residuals from original model
+	resU, err := rf.computeResiduals(ts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute residuals: %v", err)
+	}
+
+	// 3. Bootstrap loop
+	for b := 0; b < opts.NReplications; b++ {
+		// 3a. Simulate a bootstrap sample Y*
+		tsStar, err := rf.simulateBootstrapSeries(ts, resU, rng)
+		if err != nil {
+			return nil, fmt.Errorf("bootstrap %d: simulate failed: %v", b, err)
+		}
+
+		// 3b. Re-estimate VAR on Y*
+		bootRF, err := (&OLSEstimator{}).Estimate(tsStar, rf.Model, EstimationOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("bootstrap %d: VAR estimation failed: %v", b, err)
+		}
+
+		// 3c. Compute IRFs for each shock variable under bootstrap model
+		for shockIdx := 0; shockIdx < K; shockIdx++ {
+			irfBoot, err := bootRF.IRF(H, shockIdx)
+			if err != nil {
+				return nil, fmt.Errorf("bootstrap %d: IRF failed for shock %d: %v", b, shockIdx, err)
+			}
+
+			vals := shockIRFValues[shockIdx]
+			for h := 0; h < H; h++ {
+				for j := 0; j < K; j++ {
+					vals[h][j] = append(vals[h][j], irfBoot.At(h, j))
+				}
+			}
+		}
+	}
+
+	// 4. Compute CI bands from bootstrap distributions
+	lowerQ := opts.Alpha / 2.0
+	upperQ := 1.0 - opts.Alpha/2.0
+
+	for shockIdx, res := range results {
+		vals := shockIRFValues[shockIdx]
+		for h := 0; h < H; h++ {
+			for j := 0; j < K; j++ {
+				samples := vals[h][j]
+				if len(samples) == 0 {
+					res.Lower.Set(h, j, math.NaN())
+					res.Upper.Set(h, j, math.NaN())
+					continue
+				}
+				lo := bootstrapQuantile(samples, lowerQ)
+				hi := bootstrapQuantile(samples, upperQ)
+				res.Lower.Set(h, j, lo)
+				res.Upper.Set(h, j, hi)
+			}
+		}
+	}
+
+	return results, nil
 }

@@ -74,6 +74,8 @@ type ReducedForm interface {
 	Forecast(y0 *mat.Dense, steps int) (*mat.Dense, error)
 	// Simulates effect of one-time shock in 1 variable on all variables over time
 	IRF(horizon int, shockIndex int) (*mat.Dense, error)
+	// New: residual bootstrap for IRFs
+	BootstrapIRF(ts *TimeSeries, opts BootstrapOptions) (map[int]*IRFBootstrapResult, error)
 }
 
 // EstimationOptions contains options like regularization strngth, priors, etc.

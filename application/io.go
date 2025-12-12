@@ -251,7 +251,6 @@ func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
 	fmt.Println("=======================================")
 }
 
-
 // PrintGrangerCausality prints the Granger causality test results in a formatted table
 func PrintGrangerCausality(results [][]*GrangerCausalityResult, varNames []string) {
 	fmt.Println("\n=== Granger Causality Test Results ===")
@@ -291,4 +290,59 @@ func PrintGrangerCausality(results [][]*GrangerCausalityResult, varNames []strin
 		}
 	}
 	fmt.Println()
+}
+
+// OutputBootstrapIRFToCSV writes bootstrap IRF results to CSV in long format.
+// Columns: ShockVar, ResponseVar, Horizon, Point, Lower, Upper
+func OutputBootstrapIRFToCSV(
+	path string,
+	boot map[int]*IRFBootstrapResult,
+	varNames []string,
+) error {
+
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	header := []string{"ShockVar", "ResponseVar", "Horizon", "Point", "Lower", "Upper"}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Loop over shocks
+	for shockIdx, res := range boot {
+		shockName := varNames[shockIdx]
+
+		H, K := res.Point.Dims()
+
+		for j := 0; j < K; j++ {
+			respName := varNames[j]
+
+			for h := 0; h < H; h++ {
+				point := res.Point.At(h, j)
+				low := res.Lower.At(h, j)
+				high := res.Upper.At(h, j)
+
+				record := []string{
+					shockName,
+					respName,
+					fmt.Sprintf("%d", h),
+					fmt.Sprintf("%f", point),
+					fmt.Sprintf("%f", low),
+					fmt.Sprintf("%f", high),
+				}
+
+				if err := writer.Write(record); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }

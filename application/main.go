@@ -17,7 +17,7 @@ func main() {
 	var filename string
 	switch country {
 	case "Singapore":
-		filename = "Singapore/Training_Data_INF_"
+		filename = "Singapore/SG_Training_Data_INF_"
 	case "Qatar":
 		filename = "Qatar/Training_Data_INF_"
 	default:
@@ -116,4 +116,35 @@ func main() {
 	}
 
 	fmt.Println("IRF analysis results written to ../Files/Output/irf_results.csv")
+
+	// === 13. BOOTSTRAP IRF ANALYSIS (EXTRA) ===
+	fmt.Println("\n========================================")
+	fmt.Println("      Running Bootstrap IRF Analysis     ")
+	fmt.Println("========================================")
+
+	bootOpts := BootstrapOptions{
+		NReplications: 500,   // increase to 1000+ for publication-quality bands
+		Horizon:       12,    // number of periods in IRF
+		Alpha:         0.05,  // 95% confidence interval
+		Seed:          12345, // or 0 to use current time
+	}
+
+	bootIRFs, err := rf.BootstrapIRF(ts, bootOpts)
+	if err != nil {
+		panic(fmt.Errorf("Bootstrap IRF failed: %v", err))
+	}
+
+	fmt.Println("Bootstrap IRF analysis completed.")
+	fmt.Printf("Computed IRFs with %d replications and horizon %d.\n",
+		bootOpts.NReplications, bootOpts.Horizon)
+
+	// === 12. OUTPUT BOOTSTRAP IRF RESULTS TO CSV ===
+	outPath := "../Files/Output/bootstrap_irf_results.csv"
+	err = OutputBootstrapIRFToCSV(outPath, bootIRFs, ts.VarNames)
+	if err != nil {
+		panic(fmt.Errorf("Failed to write bootstrap IRF CSV: %v", err))
+	}
+
+	fmt.Println("Bootstrap IRF results written to:", outPath)
+
 }
