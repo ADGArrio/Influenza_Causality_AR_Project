@@ -388,3 +388,49 @@ func (rf *ReducedFormVAR) OutputGrangerBootstrapMatrixToCSV(
 
 	return nil
 }
+func (rf *ReducedFormVAR) OutputIRFAnalysisToCSV(path string, analysis map[int][]float64, varNames []string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	// Initialize a new CSV writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush() // Ensure all buffered data is written
+
+	// Write header
+	header := []string{"Horizon"}
+	for shockIdx := range analysis {
+		var varName string
+		if len(varNames) == len(analysis) {
+			varName = varNames[shockIdx]
+		} else {
+			varName = fmt.Sprintf("Var%d", shockIdx+1)
+		}
+		header = append(header, "Shock_"+varName)
+	}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Determine horizon from one of the analysis entries
+	var horizon int
+	for _, series := range analysis {
+		horizon = len(series)
+		break
+	}
+
+	// Write data rows
+	for h := 0; h < horizon; h++ {
+		record := []string{fmt.Sprintf("%d", h)}
+		for shockIdx := range analysis {
+			record = append(record, fmt.Sprintf("%f", analysis[shockIdx][h]))
+		}
+		if err := writer.Write(record); err != nil {
+			return err
+		}
+	}
+	return nil
+}

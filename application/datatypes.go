@@ -9,18 +9,6 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// Simple struct for a single time point in time series data
-type TimeSeriesPoint struct {
-	A_H1N1_Count int     // Specific subtype count
-	FluA_Percent float64 // Percentage positive flu A tests
-	ILI_Activity float64 // ILI Syndromic Indicator
-
-	// Need to change based on data source
-	Avg_Temperature float64
-	Avg_Humidity    float64
-	Sin_Seasonality float64
-}
-
 // Simple struct for time series data
 type TimeSeries struct {
 	// Matrix for data
