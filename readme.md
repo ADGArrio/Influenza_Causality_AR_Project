@@ -1,0 +1,128 @@
+# Influenza VAR Causality Analysis (Go + R Shiny)
+
+This project is a small toolkit for running **Vector Autoregression (VAR)**-based analyses on influenza and weather data in Go, with an R Shiny dashboard for visualization.  
+
+The Go side loads preprocessed CSVs, fits a VAR model, produces forecasts, impulse response functions (IRFs), Granger causality tests, and bootstrap confidence intervals, and writes everything to CSV. The R Shiny app compiles/runs the Go program and turns those CSVs into interactive plots. 
+
+---
+
+## Repository layout (key pieces)
+
+From the point of view of this project, the important files are:
+
+- `application/`
+  - `main.go` — command-line driver: loads data, fits VAR, runs forecasts, IRFs, Granger tests, bootstraps, and writes CSV outputs. :contentReference[oaicite:1]{index=1}
+  - `datatypes.go` — core data structures and interfaces (`TimeSeries`, `ModelSpec`, `ReducedFormVAR`, `ReducedForm`, `Estimator`, bootstrap structs, etc.). :contentReference[oaicite:2]{index=2}
+  - `functions.go` — main methods for forecasting, IRFs, VAR estimation, Granger causality, and bootstrap logic. :contentReference[oaicite:3]{index=3}
+  - `io.go` — CSV loading and CSV writers (forecasts, IRFs, Granger matrices, bootstrap results) plus text summary/printing helpers. :contentReference[oaicite:4]{index=4}
+  - (compiled binary is named `application` by default)
+- `app.R` — R Shiny app that compiles/runs the Go binary and visualizes forecast, Granger, and IRF outputs. :contentReference[oaicite:5]{index=5}
+- `../Files/Final_Training_Data/` — input CSVs (per-country, per-strain; paths are hard-coded in `main.go`).
+- `../Files/Output/` — where all Go-generated CSV outputs are written.
+
+---
+
+## Prerequisites
+
+### Go
+
+- Go (1.20+ recommended).
+- Gonum libraries (used for matrices and distributions):  
+  - `gonum.org/v1/gonum/mat`  
+  - `gonum.org/v1/gonum/stat/distuv`   
+
+Install (from inside `application/`, if you don’t already have a `go.mod`):
+
+```bash
+go mod init influenza-var-analysis   # or any module path you like
+go get gonum.org/v1/gonum@latest
+go mod tidy
+```
+
+### R
+```R
+install.packages(c("shiny", "ggplot2", "wesanderson",
+                   "reshape2", "tidyverse",
+                   "gganimate", "gifski"))
+```
+
+
+# Quickstart Guide
+
+### 1. Install prerequisites
+
+### 2. Build Go Program
+```bash
+go build -o application
+```
+
+### 3. Run VAR analysis from command line
+```bash
+./application Singapore A
+```
+This runs an analysis on the pre-existing dataset for Singapore and influenza type A.  
+All outputs will appear in:
+```
+Files/Output/
+```
+
+### 4. Run the Shiny Dashboard
+This app is separate from the command line interface so you can run it and it will immediately pull up any dataset that the app analyzes with options of graphs.
+```R
+setwd("application")
+source("app.R")
+```
+
+### 5. Adding your own CSV files
+You can put CSV files in this folder:  
+
+``
+Files/Final_Training_Data/<NewCountry>/Training_Data_INF_A_transformed.csv
+Files/Final_Training_Data/<NewCountry>/Training_Data_INF_B_transformed.csv
+``  
+
+After which you can register the new country inside `main.go` and add the country name to the dropdown in `app.R`
+
+1) Create a folder (let's use India):
+`mkdir -p Files/Final_Training_Data/India`
+2) Add CSV's:
+```
+Files/Final_Training_Data/India/Training_Data_INF_A_transformed.csv
+Files/Final_Training_Data/India/Training_Data_INF_B_transformed.csv
+```
+3) Modify main.go
+Find this block:
+```Go
+switch country {
+case "Singapore":
+    filename = "Singapore/SG_Training_Data_INF_"
+case "Qatar":
+    filename = "Qatar/Training_Data_INF_"
+default:
+    panic("Unsupported country")
+}
+```
+4) Add
+```Go
+case "India":
+    filename = "India/Training_Data_INF_"
+```
+5) Modify app.R
+```R
+choices = c("Singapore", "Qatar", "India")
+```
+
+## Repo Layout
+```
+application/
+    main.go            # CLI driver: loads data, runs VAR, writes outputs
+    datatypes.go       # Core structs and interfaces
+    functions.go       # VAR estimation, forecasting, IRF, Granger, bootstrapping
+    io.go              # CSV loader, writers, summary printing
+    app.R              # Shiny app for visualization
+Files/
+    Final_Training_Data/   # Input CSVs
+    Output/                # Generated output CSVs
+'Data Processing'
+    assumptions_checking.py    # Checks for assumptions on the dataset
+```
