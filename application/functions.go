@@ -6,7 +6,9 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"runtime"
 	"sort"
+	"sync"
 	"time"
 
 	"gonum.org/v1/gonum/mat"
@@ -1109,14 +1111,6 @@ func (rf *ReducedFormVAR) BootstrapIRF(
 		return nil, fmt.Errorf("not enough data: T=%d, p=%d", T, rf.Model.Lags)
 	}
 
-	// RNG setup
-	var rng *rand.Rand
-	if opts.Seed != 0 {
-		rng = rand.New(rand.NewSource(opts.Seed))
-	} else {
-		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
-	}
-
 	H := opts.Horizon
 
 	// 1. Compute original (point estimate) IRFs for each shock variable
@@ -1157,37 +1151,113 @@ func (rf *ReducedFormVAR) BootstrapIRF(
 		return nil, fmt.Errorf("failed to compute residuals: %v", err)
 	}
 
-	// 3. Bootstrap loop
-	for b := 0; b < opts.NReplications; b++ {
-		// 3a. Simulate a bootstrap sample Y*
-		tsStar, err := rf.simulateBootstrapSeries(ts, resU, rng)
-		if err != nil {
-			return nil, fmt.Errorf("bootstrap %d: simulate failed: %v", b, err)
-		}
+	// 3. Prepare per-replication seeds (so RNG is not shared across goroutines)
+	var masterSeed int64
+	if opts.Seed != 0 {
+		masterSeed = opts.Seed
+	} else {
+		masterSeed = time.Now().UnixNano()
+	}
+	masterRng := rand.New(rand.NewSource(masterSeed))
 
-		// 3b. Re-estimate VAR on Y*
-		bootRF, err := (&OLSEstimator{}).Estimate(tsStar, rf.Model, EstimationOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("bootstrap %d: VAR estimation failed: %v", b, err)
-		}
+	seeds := make([]int64, opts.NReplications)
+	for i := 0; i < opts.NReplications; i++ {
+		seeds[i] = masterRng.Int63()
+	}
 
-		// 3c. Compute IRFs for each shock variable under bootstrap model
-		for shockIdx := 0; shockIdx < K; shockIdx++ {
-			irfBoot, err := bootRF.IRF(H, shockIdx)
-			if err != nil {
-				return nil, fmt.Errorf("bootstrap %d: IRF failed for shock %d: %v", b, shockIdx, err)
+	// 4. Set up worker pool for parallel bootstrapping
+	numWorkers := runtime.NumCPU()
+	if numWorkers > opts.NReplications {
+		numWorkers = opts.NReplications
+	}
+
+	jobs := make(chan int)
+	resultsCh := make(chan irfReplication, opts.NReplications)
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	// Worker function
+	worker := func() {
+		defer wg.Done()
+
+		for b := range jobs {
+			// Local RNG for this replication
+			rng := rand.New(rand.NewSource(seeds[b]))
+
+			// 4a. Simulate a bootstrap sample Y*
+			tsStar, errSim := rf.simulateBootstrapSeries(ts, resU, rng)
+			if errSim != nil {
+				// In a production library you'd want better error handling,
+				// but panic is OK for now to reveal issues.
+				panic(fmt.Errorf("bootstrap %d: simulate failed: %v", b, errSim))
 			}
 
+			// 4b. Re-estimate VAR on Y*
+			bootRF, errEst := (&OLSEstimator{}).Estimate(tsStar, rf.Model, EstimationOptions{})
+			if errEst != nil {
+				panic(fmt.Errorf("bootstrap %d: VAR estimation failed: %v", b, errEst))
+			}
+
+			// 4c. Compute IRFs for each shock variable under bootstrap model
+			rep := irfReplication{
+				ShockIRFs: make(map[int][][]float64, K),
+			}
+
+			for shockIdx := 0; shockIdx < K; shockIdx++ {
+				irfBoot, errIRF := bootRF.IRF(H, shockIdx)
+				if errIRF != nil {
+					panic(fmt.Errorf("bootstrap %d: IRF failed for shock %d: %v", b, shockIdx, errIRF))
+				}
+
+				hRows, kCols := irfBoot.Dims()
+				m := make([][]float64, hRows)
+				for h := 0; h < hRows; h++ {
+					m[h] = make([]float64, kCols)
+					for j := 0; j < kCols; j++ {
+						m[h][j] = irfBoot.At(h, j)
+					}
+				}
+				rep.ShockIRFs[shockIdx] = m
+			}
+
+			// Send this replication's IRFs to the aggregator
+			resultsCh <- rep
+		}
+	}
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		go worker()
+	}
+
+	// Feed jobs
+	go func() {
+		for b := 0; b < opts.NReplications; b++ {
+			jobs <- b
+		}
+		close(jobs)
+	}()
+
+	// 5. Aggregator: collect all replication results and fill shockIRFValues
+	for i := 0; i < opts.NReplications; i++ {
+		rep := <-resultsCh
+
+		for shockIdx, matIRF := range rep.ShockIRFs {
 			vals := shockIRFValues[shockIdx]
 			for h := 0; h < H; h++ {
 				for j := 0; j < K; j++ {
-					vals[h][j] = append(vals[h][j], irfBoot.At(h, j))
+					vals[h][j] = append(vals[h][j], matIRF[h][j])
 				}
 			}
 		}
 	}
 
-	// 4. Compute CI bands from bootstrap distributions
+	// All results collected; workers can be joined now
+	wg.Wait()
+	close(resultsCh)
+
+	// 6. Compute CI bands from bootstrap distributions
 	lowerQ := opts.Alpha / 2.0
 	upperQ := 1.0 - opts.Alpha/2.0
 
@@ -1210,4 +1280,197 @@ func (rf *ReducedFormVAR) BootstrapIRF(
 	}
 
 	return results, nil
+}
+
+// irfReplication holds the IRF matrices for all shocks from a single bootstrap replication.
+// ShockIRFs[shockIdx][h][j] = IRF(h, j) for that replication.
+type irfReplication struct {
+	ShockIRFs map[int][][]float64
+}
+
+// BootstrapGrangerMatrix performs a residual bootstrap for Granger causality
+// for all variable pairs (i -> j, i != j).
+// It returns a K x K matrix of GrangerCausalityBootstrapResult, where
+// result[i][j] is nil if i == j.
+func (rf *ReducedFormVAR) BootstrapGrangerMatrix(
+	ts *TimeSeries,
+	opts GrangerBootstrapOptions,
+) ([][]*GrangerCausalityBootstrapResult, error) {
+
+	if ts == nil || ts.Y == nil {
+		return nil, fmt.Errorf("time series data not provided")
+	}
+	if rf == nil || len(rf.A) == 0 {
+		return nil, fmt.Errorf("VAR model not estimated")
+	}
+
+	// Defaults
+	if opts.NReplications <= 0 {
+		opts.NReplications = 500
+	}
+	if opts.Alpha <= 0 || opts.Alpha >= 1 {
+		opts.Alpha = 0.05
+	}
+
+	T, K := ts.Y.Dims()
+	if T <= rf.Model.Lags {
+		return nil, fmt.Errorf("not enough data: T=%d, p=%d", T, rf.Model.Lags)
+	}
+
+	// 1. Original analytic Granger matrix
+	baseGC, err := rf.GrangerCausalityMatrix(ts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute base Granger matrix: %v", err)
+	}
+
+	// 2. Residuals from original VAR
+	resU, err := rf.computeResiduals(ts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute residuals: %v", err)
+	}
+
+	// 3. RNG seeding
+	var seed int64
+	if opts.Seed != 0 {
+		seed = opts.Seed
+	} else {
+		seed = time.Now().UnixNano()
+	}
+	masterRng := rand.New(rand.NewSource(seed))
+
+	// Per-replication seeds so workers don't share RNG
+	seeds := make([]int64, opts.NReplications)
+	for i := 0; i < opts.NReplications; i++ {
+		seeds[i] = masterRng.Int63()
+	}
+
+	// 4. Counts for bootstrap p-values
+	counts := make([][]int, K)
+	for i := 0; i < K; i++ {
+		counts[i] = make([]int, K)
+	}
+
+	// 5. Worker pool setup
+	numWorkers := runtime.NumCPU()
+	if numWorkers > opts.NReplications {
+		numWorkers = opts.NReplications
+	}
+
+	jobs := make(chan int)
+	resultsCh := make(chan gcReplication, opts.NReplications)
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	worker := func() {
+		defer wg.Done()
+		for b := range jobs {
+			rng := rand.New(rand.NewSource(seeds[b]))
+
+			// 5a. Simulate bootstrap sample Y*
+			tsStar, errSim := rf.simulateBootstrapSeries(ts, resU, rng)
+			if errSim != nil {
+				panic(fmt.Errorf("bootstrap %d: simulate failed: %v", b, errSim))
+			}
+
+			// 5b. Re-estimate VAR on Y*
+			bootRF, errEst := (&OLSEstimator{}).Estimate(tsStar, rf.Model, EstimationOptions{})
+			if errEst != nil {
+				panic(fmt.Errorf("bootstrap %d: VAR estimation failed: %v", b, errEst))
+			}
+
+			// 5c. Compute Granger matrix on bootstrap sample
+			bootGC, errGC := bootRF.GrangerCausalityMatrix(tsStar)
+			if errGC != nil {
+				panic(fmt.Errorf("bootstrap %d: Granger matrix failed: %v", b, errGC))
+			}
+
+			// 5d. Extract F-stats into a dense KxK matrix
+			F := make([][]float64, K)
+			for i := 0; i < K; i++ {
+				F[i] = make([]float64, K)
+				for j := 0; j < K; j++ {
+					if i == j {
+						F[i][j] = 0.0
+						continue
+					}
+					if bootGC[i][j] != nil {
+						F[i][j] = bootGC[i][j].FStatistic
+					} else {
+						F[i][j] = 0.0
+					}
+				}
+			}
+
+			resultsCh <- gcReplication{FStats: F}
+		}
+	}
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		go worker()
+	}
+
+	// Feed jobs
+	go func() {
+		for b := 0; b < opts.NReplications; b++ {
+			jobs <- b
+		}
+		close(jobs)
+	}()
+
+	// 6. Aggregator: collect replication results and update counts
+	for i := 0; i < opts.NReplications; i++ {
+		rep := <-resultsCh
+		Fboot := rep.FStats
+
+		for c := 0; c < K; c++ {
+			for e := 0; e < K; e++ {
+				if c == e {
+					continue
+				}
+				base := baseGC[c][e]
+				if base == nil {
+					continue
+				}
+				if Fboot[c][e] >= base.FStatistic {
+					counts[c][e]++
+				}
+			}
+		}
+	}
+
+	wg.Wait()
+	close(resultsCh)
+
+	// 7. Build output matrix with bootstrap p-values
+	out := make([][]*GrangerCausalityBootstrapResult, K)
+	for i := 0; i < K; i++ {
+		out[i] = make([]*GrangerCausalityBootstrapResult, K)
+		for j := 0; j < K; j++ {
+			if i == j {
+				out[i][j] = nil
+				continue
+			}
+
+			base := baseGC[i][j]
+			if base == nil {
+				out[i][j] = nil
+				continue
+			}
+
+			// small-sample correction: (count+1)/(N+1)
+			bootP := float64(counts[i][j]+1) / float64(opts.NReplications+1)
+
+			res := &GrangerCausalityBootstrapResult{
+				Base:        base,
+				BootPValue:  bootP,
+				Alpha:       opts.Alpha,
+				Significant: bootP < opts.Alpha,
+			}
+			out[i][j] = res
+		}
+	}
+
+	return out, nil
 }

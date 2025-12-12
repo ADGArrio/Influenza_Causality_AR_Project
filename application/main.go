@@ -138,7 +138,7 @@ func main() {
 	fmt.Printf("Computed IRFs with %d replications and horizon %d.\n",
 		bootOpts.NReplications, bootOpts.Horizon)
 
-	// === 12. OUTPUT BOOTSTRAP IRF RESULTS TO CSV ===
+	// === 14. OUTPUT BOOTSTRAP IRF RESULTS TO CSV ===
 	outPath := "../Files/Output/bootstrap_irf_results.csv"
 	err = OutputBootstrapIRFToCSV(outPath, bootIRFs, ts.VarNames)
 	if err != nil {
@@ -147,4 +147,26 @@ func main() {
 
 	fmt.Println("Bootstrap IRF results written to:", outPath)
 
+	// === 13. BOOTSTRAP GRANGER CAUSALITY (EXTRA) ===
+	fmt.Println("\n==============================================")
+	fmt.Println("     Running Bootstrap Granger Causality      ")
+	fmt.Println("==============================================")
+
+	gbOpts := GrangerBootstrapOptions{
+		NReplications: 500,   // bump to 1000+ if you want tighter p-values
+		Alpha:         0.05,  // 95% significance
+		Seed:          12345, // or 0 for time-based
+	}
+
+	bootGC, err := rf.BootstrapGrangerMatrix(ts, gbOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	bootPath := "../Files/Output/granger_bootstrap_results.csv"
+	err = rf.OutputGrangerBootstrapMatrixToCSV(bootPath, bootGC, ts.VarNames)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Bootstrap Granger causality results written to", bootPath)
 }

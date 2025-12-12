@@ -346,3 +346,66 @@ func OutputBootstrapIRFToCSV(
 
 	return nil
 }
+
+// OutputGrangerBootstrapMatrixToCSV writes the bootstrap GC results to CSV.
+// Columns: CauseVar, EffectVar, FStatistic, AsymptoticP, BootPValue, Lags, Significant_Asymptotic, Significant_Bootstrap
+func (rf *ReducedFormVAR) OutputGrangerBootstrapMatrixToCSV(
+	path string,
+	bootMat [][]*GrangerCausalityBootstrapResult,
+	varNames []string,
+) error {
+
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	header := []string{
+		"CauseVar",
+		"EffectVar",
+		"FStatistic",
+		"AsymptoticP",
+		"BootPValue",
+		"Lags",
+		"Significant_Asymptotic",
+		"Significant_Bootstrap",
+	}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	K := len(varNames)
+
+	for i := 0; i < K; i++ {
+		for j := 0; j < K; j++ {
+			if i == j {
+				continue
+			}
+			res := bootMat[i][j]
+			if res == nil || res.Base == nil {
+				continue
+			}
+
+			rec := []string{
+				res.Base.CauseVar,
+				res.Base.EffectVar,
+				fmt.Sprintf("%f", res.Base.FStatistic),
+				fmt.Sprintf("%f", res.Base.PValue),
+				fmt.Sprintf("%f", res.BootPValue),
+				fmt.Sprintf("%d", res.Base.Lags),
+				fmt.Sprintf("%t", res.Base.Significant),
+				fmt.Sprintf("%t", res.Significant),
+			}
+
+			if err := writer.Write(rec); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}

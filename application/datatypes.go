@@ -145,3 +145,27 @@ type IRFBootstrapResult struct {
 	Lower *mat.Dense
 	Upper *mat.Dense
 }
+
+// Bootstrap Causality
+
+// Options for bootstrap Granger causality
+type GrangerBootstrapOptions struct {
+	NReplications int     // e.g. 500–2000
+	Alpha         float64 // e.g. 0.05 for 95% significance
+	Seed          int64   // RNG seed; 0 = time-based
+}
+
+// GrangerCausalityBootstrapResult augments the analytic Granger result
+// with a bootstrap p-value and significance flag.
+type GrangerCausalityBootstrapResult struct {
+	Base        *GrangerCausalityResult // original analytic GC result
+	BootPValue  float64                 // bootstrap p-value
+	Alpha       float64                 // significance level used
+	Significant bool                    // BootPValue < Alpha
+}
+
+// gcReplication holds the F-statistics from a single bootstrap replication.
+// FStats[i][j] = F-statistic for i -> j (or 0 if i == j or unavailable).
+type gcReplication struct {
+	FStats [][]float64
+}
