@@ -1,11 +1,16 @@
+// Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+// Date: Dec 12th 2025
+// Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+// Class: 02-613 at Caregie Mellon University
+
 package main
 
 import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// Simple struct for a single time point in time series data
 type TimeSeriesPoint struct {
-	// Need to change based on data source
 	A_H1N1_Count int     // Specific subtype count
 	FluA_Percent float64 // Percentage positive flu A tests
 	ILI_Activity float64 // ILI Syndromic Indicator
@@ -14,8 +19,6 @@ type TimeSeriesPoint struct {
 	Avg_Temperature float64
 	Avg_Humidity    float64
 	Sin_Seasonality float64
-
-	// Lagged Features (Engineered)
 }
 
 // Simple struct for time series data
@@ -28,6 +31,7 @@ type TimeSeries struct {
 	VarNames []string
 }
 
+// What kind of constant to include in the model
 type Deterministic int
 
 // Deterministic Constants for VAR
@@ -48,6 +52,7 @@ type ModelSpec struct {
 	HasExogenous bool
 }
 
+// ReducedFormVAR represents the reduced form of a VAR model.
 type ReducedFormVAR struct {
 	Model ModelSpec
 
@@ -62,6 +67,7 @@ type ReducedFormVAR struct {
 	SigmaU *mat.SymDense
 }
 
+// ReducedForm is the interface for a reduced form VAR model.
 type ReducedForm interface {
 	// Returns the model specification
 	Spec() ModelSpec
@@ -82,20 +88,18 @@ type ReducedForm interface {
 type EstimationOptions struct {
 	// For standard VAr
 	UseGeneralizedLeastSquares bool
-
-	// EX: if BVAR is implemented
-	//Prior Prior
 }
 
+// Estimator is the interface for a VAR model estimator.
 type Estimator interface {
 	// Turns the data we have into a reduced form VAR
 	Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationOptions) (*ReducedFormVAR, error)
 }
 
-// --- Plain OLS VAR estimator ---
-
+// OLSEstimator implements the OLS estimator for VAR models.
 type OLSEstimator struct{}
 
+// VARModel holds the results of fitting a VAR model.
 type VARModel struct {
 	LagP         int         // Optimal lag order used (p)
 	Coefficients [][]float64 // The fitted A_1...A_p matrices (the core model parameters)
@@ -118,6 +122,7 @@ type GrangerCausalityResult struct {
 	Significant bool    // True if p-value < 0.05
 }
 
+// Options for bootstrap IRFs
 type BootstrapOptions struct {
 	// Number of bootstrap replications (e.g., 500–2000)
 	NReplications int
@@ -146,17 +151,14 @@ type IRFBootstrapResult struct {
 	Upper *mat.Dense
 }
 
-// Bootstrap Causality
-
-// Options for bootstrap Granger causality
+// Options for bootstrap Granger causality specifically.
 type GrangerBootstrapOptions struct {
 	NReplications int     // e.g. 500–2000
 	Alpha         float64 // e.g. 0.05 for 95% significance
 	Seed          int64   // RNG seed; 0 = time-based
 }
 
-// GrangerCausalityBootstrapResult augments the analytic Granger result
-// with a bootstrap p-value and significance flag.
+// GrangerCausalityBootstrapResult holds the results of a bootstrap Granger causality test.
 type GrangerCausalityBootstrapResult struct {
 	Base        *GrangerCausalityResult // original analytic GC result
 	BootPValue  float64                 // bootstrap p-value
@@ -164,8 +166,7 @@ type GrangerCausalityBootstrapResult struct {
 	Significant bool                    // BootPValue < Alpha
 }
 
-// gcReplication holds the F-statistics from a single bootstrap replication.
-// FStats[i][j] = F-statistic for i -> j (or 0 if i == j or unavailable).
+// gcReplication holds the F-statistics from one bootstrap replication.
 type gcReplication struct {
 	FStats [][]float64
 }

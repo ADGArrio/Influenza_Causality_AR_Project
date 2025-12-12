@@ -1,3 +1,8 @@
+// Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+// Date: Dec 12th 2025
+// Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+// Class: 02-613 at Caregie Mellon University
+
 package main
 
 import (
@@ -11,16 +16,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// LoadCSVToTimeSeries reads CSV file:
-//
-//   - The first row is a header with variable names
-//   - All remaining rows are numeric values
-//   - There is no explicit time column; time is taken as 0,1,2,...
-//
-// Returns TimeSeries with:
-//   - Y: T x K matrix (rows: time points, cols: variables)
-//   - Time: []float64 of length T
-//   - VarNames: []string of length K
+// LoadCSVToTimeSeries loads a CSV file into a TimeSeries struct.
 func LoadCSVToTimeSeries(path string) (*TimeSeries, error) {
 	// 1. Open file
 	f, err := os.Open(path)
@@ -149,18 +145,14 @@ func PrintIRF(irf *mat.Dense, varNames []string, shockIndex int) {
 
 // Produces a summary table of all of the model params
 func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
+	// Check if rf is nil
 	if rf == nil {
 		fmt.Println("VAR model is nil")
 		return
 	}
-
-	fmt.Println("=======================================")
 	fmt.Println("         Reduced-form VAR Summary      ")
-	fmt.Println("=======================================")
 
-	// --------------------------------
 	// Basic dimensions
-	// --------------------------------
 	var (
 		T, K int
 	)
@@ -181,26 +173,19 @@ func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
 	fmt.Printf("Number of lag matrices:  %d\n", len(rf.A))
 	fmt.Println()
 
-	// --------------------------------
-	// Model specification
-	// --------------------------------
+	// Model specifications
 	fmt.Println("Model specification:")
 	fmt.Printf("  Deterministic: %v\n", rf.Model.Deterministic)
 	fmt.Printf("  Has exogenous: %v\n", rf.Model.HasExogenous)
 	fmt.Println()
 
-	// --------------------------------
-	// Variable names
-	// --------------------------------
 	if ts != nil && len(ts.VarNames) > 0 {
 		fmt.Println("Variables:")
 		fmt.Printf("  %s\n", strings.Join(ts.VarNames, ", "))
 		fmt.Println()
 	}
 
-	// --------------------------------
 	// Parameter counts
-	// --------------------------------
 	numCoeff := 0
 	if len(rf.A) > 0 && rf.A[0] != nil {
 		rA, cA := rf.A[0].Dims()
@@ -215,9 +200,7 @@ func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
 	}
 	fmt.Println()
 
-	// --------------------------------
 	// Coefficient matrices
-	// --------------------------------
 	if len(rf.A) > 0 {
 		fmt.Println("Coefficient matrices A_1 ... A_p:")
 		for i, Ai := range rf.A {
@@ -230,18 +213,14 @@ func (rf *ReducedFormVAR) Summary(ts *TimeSeries) {
 		fmt.Println()
 	}
 
-	// --------------------------------
 	// Intercept (if present)
-	// --------------------------------
 	if rf.C != nil {
 		fmt.Println("Intercept matrix C:")
 		fmt.Printf("%v\n", mat.Formatted(rf.C, mat.Prefix("  ")))
 		fmt.Println()
 	}
 
-	// --------------------------------
 	// Covariance matrix Σ_u
-	// --------------------------------
 	if rf.SigmaU != nil {
 		fmt.Println("Residual covariance matrix Σ_u:")
 		fmt.Printf("%v\n", mat.Formatted(rf.SigmaU, mat.Prefix("  ")))

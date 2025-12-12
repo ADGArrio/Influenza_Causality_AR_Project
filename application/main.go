@@ -1,9 +1,21 @@
+// Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+// Date: Dec 12th 2025
+// Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+// Class: 02-613 at Caregie Mellon University
+
 package main
 
 import (
 	"fmt"
 	"os"
 )
+
+// This is the main function that runs the VAR analysis for the specified country and influenza type.
+// The function expects two command-line arguments: the country name and the influenza type (A or B).
+// The function will then perform the VAR analysis and output the results to CSV files.
+// There are 14 steps in the whole process, including loading the CSV data, setting up the VAR specification,
+// estimating the VAR model, forecasting, impulse response functions (IRFs), outputting the results to CSV files,
+// and running additional analyses like Granger causality and bootstrap IRF analysis.
 
 func main() {
 	// expect 2 argument: country name, influenza type
@@ -13,6 +25,7 @@ func main() {
 	}
 	country := os.Args[1]
 	fmt.Println("Running VAR analysis for country:", country)
+
 	// Determine filename based on country
 	var filename string
 	switch country {
@@ -117,10 +130,8 @@ func main() {
 
 	fmt.Println("IRF analysis results written to ../Files/Output/irf_results.csv")
 
-	// === 13. BOOTSTRAP IRF ANALYSIS (EXTRA) ===
-	fmt.Println("\n========================================")
+	// 13. Run Bootstrap IRF Analysis
 	fmt.Println("      Running Bootstrap IRF Analysis     ")
-	fmt.Println("========================================")
 
 	bootOpts := BootstrapOptions{
 		NReplications: 500,   // increase to 1000+ for publication-quality bands
@@ -147,10 +158,8 @@ func main() {
 
 	fmt.Println("Bootstrap IRF results written to:", outPath)
 
-	// === 13. BOOTSTRAP GRANGER CAUSALITY (EXTRA) ===
-	fmt.Println("\n==============================================")
+	// 14. Run Bootstrap Granger Causality Analysis
 	fmt.Println("     Running Bootstrap Granger Causality      ")
-	fmt.Println("==============================================")
 
 	gbOpts := GrangerBootstrapOptions{
 		NReplications: 500,   // bump to 1000+ if you want tighter p-values

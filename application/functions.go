@@ -1,3 +1,8 @@
+// Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+// Date: Dec 12th 2025
+// Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+// Class: 02-613 at Caregie Mellon University
+
 package main
 
 import (
@@ -15,12 +20,13 @@ import (
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
-// --- FUNCTIONS FOR BASE ---
+// These functions are for the ReducedFormVAR struct and its methods
 // Returns current Model Spec
 func (rf *ReducedFormVAR) Spec() ModelSpec { return rf.Model }
 
 // Returns coefficient matrices
-func (rf *ReducedFormVAR) Phi() []*mat.Dense { return rf.A }
+func (rf *ReducedFormVAR) Phi() []*mat.Dense { re
+	turn rf.A }
 
 // Returns error covariance matrix
 func (rf *ReducedFormVAR) CovU() *mat.SymDense { return rf.SigmaU }
@@ -29,9 +35,6 @@ func (rf *ReducedFormVAR) CovU() *mat.SymDense { return rf.SigmaU }
 // yHist: T x K (rows: time, cols: variables). Only last p rows are used as lags.
 // steps: number of steps ahead to forecast
 // Returns: Steps xK matrix of forecasts
-// HOW TO USE:
-// rf, _ := (&OLSEstimator{}).Estimate(ts, spec, EstimationOptions{})
-// fcst, err := rf.Forecast(ts.Y, 10) //10-step ahead forecast
 func (rf *ReducedFormVAR) Forecast(yHist *mat.Dense, steps int) (*mat.Dense, error) {
 	if rf == nil || len(rf.A) == 0 {
 		return nil, fmt.Errorf("VAR model not estimated")
@@ -125,9 +128,6 @@ func (rf *ReducedFormVAR) Forecast(yHist *mat.Dense, steps int) (*mat.Dense, err
 // Horizon: number of periods to compute (h=0, ..., horizon-1)
 // shockIndex: index of variable to shock, (0-based)
 // Returns: horizon x K matrix. where row h is response of all K vars at horizon h
-// Usage:
-// rf, _ := (&OLSEstimator{}).Estimate(ts, spec, EstimationOptions{})
-// irfMat, err := rf.IRF(20, 0) // 20-period IRF to shock in variable 0
 func (rf *ReducedFormVAR) IRF(horizon int, shockIndex int) (*mat.Dense, error) {
 	if rf == nil || len(rf.A) == 0 {
 		return nil, fmt.Errorf("VAR model not estimated")
@@ -331,7 +331,11 @@ func (rf *ReducedFormVAR) OutputForecastsToCSV(path string, fc *mat.Dense, varNa
 	return nil
 }
 
-// --- OLS IMPLEMENTATION ---
+// Estimate computes the VAR model parameters using OLS
+// ts: TimeSeries struct containing the data
+// spec: ModelSpec struct containing the model specification
+// opts: EstimationOptions struct containing estimation options
+// Returns: ReducedFormVAR struct containing the estimated model 
 func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationOptions) (*ReducedFormVAR, error) {
 	if ts == nil || ts.Y == nil {
 		return nil, fmt.Errorf("time series data not provided")
@@ -505,6 +509,11 @@ func (e *OLSEstimator) Estimate(ts *TimeSeries, spec ModelSpec, opts EstimationO
 }
 
 // GrangerCausality tests whether causeIdx Granger-causes effectIdx
+// in the VAR model. The null hypothesis is that causeIdx does not Granger-cause effectIdx.
+// ts: TimeSeries struct containing the data
+// causeIdx: index of the variable that may Granger-cause
+// effectIdx: index of the variable that may be Granger-caused
+// by causeIdx.
 // Returns the F-statistic and p-value
 func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx int) (*GrangerCausalityResult, error) {
 	if ts == nil || ts.Y == nil {
@@ -624,8 +633,6 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 
 	rssUnrestricted := mat.Dot(&residUnrestricted, &residUnrestricted)
 
-	// --- RESTRICTED MODEL (drop lags of cause variable, re-estimate) ---
-
 	// Restricted design matrix: same deterministics, but we skip causeIdx in lag blocks
 	mRestricted := detCols + p*(K-1) // exclude p lags of cause variable
 	XRestricted := mat.NewDense(Treg, mRestricted, nil)
@@ -655,7 +662,6 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 		}
 	}
 
-	// Fit restricted model via least squares: X_R * beta_R ≈ yEffect
 	// Fit restricted model via least squares: X_R * beta_R ≈ yEffect
 	// We mimic the SVD + pseudoinverse fallback used in Estimate().
 	betaRestricted := mat.NewVecDense(mRestricted, nil)
@@ -721,8 +727,7 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 
 	rssRestricted := mat.Dot(&residRestricted, &residRestricted)
 
-	// --- F-statistic and p-value ---
-
+	// F-statistic and p-value
 	q := float64(p)             // number of restrictions
 	k := float64(mUnrestricted) // parameters in unrestricted model
 	dof := float64(Treg) - k    // denominator degrees of freedom
@@ -764,7 +769,7 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 		}
 	}
 
-	// Final sanity clamp on pValue
+	// Final sanity clamp on pValue to ensure it's in [0, 1]
 	if pValue < 0 {
 		pValue = 0
 	}
@@ -785,6 +790,8 @@ func (rf *ReducedFormVAR) GrangerCausality(ts *TimeSeries, causeIdx, effectIdx i
 }
 
 // GrangerCausalityMatrix performs pairwise Granger causality tests for all variables
+// in the VAR model and returns a matrix of GrangerCausalityResult.
+// Returns: K x K matrix of GrangerCausalityResult, where result[i][j] is the result
 func (rf *ReducedFormVAR) GrangerCausalityMatrix(ts *TimeSeries) ([][]*GrangerCausalityResult, error) {
 	if ts == nil || ts.Y == nil {
 		return nil, fmt.Errorf("time series data not provided")
@@ -820,6 +827,7 @@ func (rf *ReducedFormVAR) GrangerCausalityMatrix(ts *TimeSeries) ([][]*GrangerCa
 
 // This function takes in the created Granger Matrix and outputs it to a CSV file with
 // the columns: CauseVar, EffectVar, FStatistic, PValue, Lags, Significant
+// Returns an error if the file cannot be written, otherwise returns nil and writes the file
 func (rf *ReducedFormVAR) OutputGrangerMatrixToCSV(path string, gcMatrix [][]*GrangerCausalityResult, varNames []string) error {
 	file, err := os.Create(path)
 

@@ -1,9 +1,13 @@
-# Check if shiny is installed; if not, install it
+# Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+# Date: Dec 12th 2025
+# Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+# Class: 02-613 at Caregie Mellon University
+
+# Check if packages are installed; if not, install themß
 if (!require("shiny")) {
   install.packages("shiny")
 }
 
-# Check if ggplot2 is installed; if not, install it
 if (!require("ggplot2")) {
   install.packages("ggplot2")
 }
@@ -37,6 +41,7 @@ library(tidyverse)
 library(reshape2)
 library(gifski)
 
+# Setup UI 
 ui <- fluidPage(
   titlePanel("Influenza Autoregression Analysis"),
     
@@ -60,11 +65,11 @@ ui <- fluidPage(
       plotOutput("outputPlot"),
       plotOutput("grangerPlot"),
       imageOutput("irfPlot"),
-      # plotOutput("irmcumPlot")
     )
   )
 )
  
+# Setup server logic
 server <- function(input, output) {
   
   observeEvent(input$runGoCode, {
@@ -160,6 +165,8 @@ server <- function(input, output) {
         values_to = "CumulativeImpact"
       )
 
+    # this plot is not rendered in this version of the app, but is included for future use incase you 
+    # wanna see the cumulative impact magnitudes
     plot_irmcum <- ggplot(irmcum_data, aes(x = Variable, y = CumulativeImpact, fill = Variable)) +
       geom_bar(stat = "identity") +
       labs(title = paste("Cumulative Impulse Response Magnitudes in", country),
@@ -187,9 +194,6 @@ server <- function(input, output) {
     })
     output$grangerPlot <- renderPlot({
       plot_granger
-    })
-    output$irmcumPlot <- renderPlot({
-      plot_irmcum
     })
   })
 }

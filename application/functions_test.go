@@ -1,3 +1,8 @@
+// Authors: Rohan Adla, Arrio Gonsalves, Shreyan Nalwad, Dylan Setiawan
+// Date: Dec 12th 2025
+// Project: A VAR-based Computational Analysis of Influenza and Weather Dynamics
+// Class: 02-613 at Caregie Mellon University
+
 package main
 
 import (
@@ -14,7 +19,7 @@ func almostEqual(a, b, tol float64) bool {
 	return math.Abs(a-b) <= tol
 }
 
-// --- Forecast tests ---
+// Forecast tests
 
 // VAR(1) scalar without deterministics: y_t = 0.5 y_{t-1}
 // If last observed value is y_T = 1/16, then forecasts should be:
@@ -107,7 +112,7 @@ func TestForecast_Var1_ConstantOnly(t *testing.T) {
 	}
 }
 
-// --- IRF tests ---
+// IRF tests
 
 // Scalar VAR(1): y_t = a y_{t-1} + u_t, Var(u_t) = 1
 // With Cholesky, shock = 1, and Psi_h = a^h, so IRF(h) = a^h.
@@ -152,7 +157,7 @@ func TestIRF_ScalarVAR1(t *testing.T) {
 	}
 }
 
-// --- Estimate tests ---
+// Estimate tests
 
 // Check that Estimate recovers roughly the correct coefficient
 // for y_t = 0.5 y_{t-1} with no deterministic terms.
@@ -242,7 +247,7 @@ func TestEstimate_PseudoinverseFallback(t *testing.T) {
 	}
 }
 
-// --- Getter tests ---
+// Getter tests
 
 func TestSpec(t *testing.T) {
 	spec := ModelSpec{
@@ -289,7 +294,7 @@ func TestCovU(t *testing.T) {
 	}
 }
 
-// --- RunIRFAnalysis tests ---
+// RunIRFAnalysis tests
 
 func TestRunIRFAnalysis(t *testing.T) {
 	spec := ModelSpec{
@@ -327,7 +332,7 @@ func TestRunIRFAnalysis(t *testing.T) {
 	}
 }
 
-// --- GrangerCausality tests ---
+// GrangerCausality tests
 
 func TestGrangerCausality_Basic(t *testing.T) {
 	// Generate simple VAR(1) data where var1 causes var2
@@ -404,7 +409,7 @@ func TestGrangerCausality_SameIndex(t *testing.T) {
 	}
 }
 
-// --- GrangerCausalityMatrix tests ---
+// GrangerCausalityMatrix tests
 
 func TestGrangerCausalityMatrix(t *testing.T) {
 	T := 50
@@ -456,7 +461,7 @@ func TestGrangerCausalityMatrix(t *testing.T) {
 	}
 }
 
-// --- CSV Output tests ---
+// CSV Output tests
 
 func TestOutputForecastsToCSV(t *testing.T) {
 	tmpFile := "test_forecasts.csv"
@@ -519,7 +524,7 @@ func TestOutputGrangerMatrixToCSV(t *testing.T) {
 	}
 }
 
-// --- computeResiduals tests ---
+// computeResiduals tests
 
 func TestComputeResiduals(t *testing.T) {
 	// Generate data from known VAR(1): y_t = 0.5 * y_{t-1}
@@ -565,7 +570,7 @@ func TestComputeResiduals(t *testing.T) {
 	}
 }
 
-// --- bootstrapQuantile tests ---
+// bootstrapQuantile tests
 
 func TestBootstrapQuantile(t *testing.T) {
 	samples := []float64{1.0, 2.0, 3.0, 4.0, 5.0}
@@ -601,7 +606,7 @@ func TestBootstrapQuantile(t *testing.T) {
 	}
 }
 
-// --- simulateBootstrapSeries tests ---
+// simulateBootstrapSeries tests
 
 func TestSimulateBootstrapSeries(t *testing.T) {
 	T := 20
@@ -673,7 +678,7 @@ func TestSimulateBootstrapSeries(t *testing.T) {
 	}
 }
 
-// --- BootstrapIRF tests ---
+// BootstrapIRF tests
 
 func TestBootstrapIRF_SmallSample(t *testing.T) {
 	// This is a smoke test - just verify it runs without error
@@ -738,7 +743,7 @@ func TestBootstrapIRF_SmallSample(t *testing.T) {
 	}
 }
 
-// --- BootstrapGrangerMatrix tests ---
+// BootstrapGrangerMatrix tests
 
 func TestBootstrapGrangerMatrix_SmallSample(t *testing.T) {
 	// Smoke test - verify it runs
