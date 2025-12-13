@@ -13,7 +13,7 @@ import (
 // This is the main function that runs the VAR analysis for the specified country and influenza type.
 // The function expects two command-line arguments: the country name and the influenza type (A or B).
 // The function will then perform the VAR analysis and output the results to CSV files.
-// There are 15 steps in the whole process, including loading the CSV data, setting up the VAR specification,
+// There are 14 steps in the whole process, including loading the CSV data, setting up the VAR specification,
 // estimating the VAR model, forecasting, impulse response functions (IRFs), outputting the results to CSV files,
 // and running additional analyses like Granger causality and bootstrap IRF analysis.
 
@@ -130,52 +130,54 @@ func main() {
 
 	fmt.Println("IRF analysis results written to ../Files/Output/irf_results.csv")
 
+	// Bootstrap analysis is commented out as it takes a long time (upto 5 min) to run and is not necessary for the R interface.
+	// Uncomment the following lines to run bootstrap analysis if needed.
+
 	// 13. Run Bootstrap IRF Analysis
-	fmt.Println("      Running Bootstrap IRF Analysis     ")
+	// fmt.Println("      Running Bootstrap IRF Analysis     ")
 
-	bootOpts := BootstrapOptions{
-		NReplications: 500,   // increase to 1000+ for publication-quality bands
-		Horizon:       12,    // number of periods in IRF
-		Alpha:         0.05,  // 95% confidence interval
-		Seed:          12345, // or 0 to use current time
-	}
+	// bootOpts := BootstrapOptions{
+	// 	NReplications: 500,   // increase to 1000+ for publication-quality bands
+	// 	Horizon:       12,    // number of periods in IRF
+	// 	Alpha:         0.05,  // 95% confidence interval
+	// 	Seed:          12345, // or 0 to use current time
+	// }
 
-	bootIRFs, err := rf.BootstrapIRF(ts, bootOpts)
-	if err != nil {
-		panic(fmt.Errorf("Bootstrap IRF failed: %v", err))
-	}
+	// bootIRFs, err := rf.BootstrapIRF(ts, bootOpts)
+	// if err != nil {
+	// 	panic(fmt.Errorf("Bootstrap IRF failed: %v", err))
+	// }
 
-	fmt.Println("Bootstrap IRF analysis completed.")
-	fmt.Printf("Computed IRFs with %d replications and horizon %d.\n",
-		bootOpts.NReplications, bootOpts.Horizon)
+	// fmt.Println("Bootstrap IRF analysis completed.")
+	// fmt.Printf("Computed IRFs with %d replications and horizon %d.\n",
+	// 	bootOpts.NReplications, bootOpts.Horizon)
 
-	// 14. OUTPUT BOOTSTRAP IRF RESULTS TO CSV
-	outPath := "../Files/Output/bootstrap_irf_results.csv"
-	err = OutputBootstrapIRFToCSV(outPath, bootIRFs, ts.VarNames)
-	if err != nil {
-		panic(fmt.Errorf("Failed to write bootstrap IRF CSV: %v", err))
-	}
+	// outPath := "../Files/Output/bootstrap_irf_results.csv"
+	// err = OutputBootstrapIRFToCSV(outPath, bootIRFs, ts.VarNames)
+	// if err != nil {
+	// 	panic(fmt.Errorf("Failed to write bootstrap IRF CSV: %v", err))
+	// }
 
-	fmt.Println("Bootstrap IRF results written to:", outPath)
+	// fmt.Println("Bootstrap IRF results written to:", outPath)
 
-	// // 15. Run Bootstrap Granger Causality Analysis
-	fmt.Println("     Running Bootstrap Granger Causality      ")
+	// // // 14. Run Bootstrap Granger Causality Analysis
+	// fmt.Println("     Running Bootstrap Granger Causality      ")
 
-	gbOpts := GrangerBootstrapOptions{
-		NReplications: 500,   // bump to 1000+ if you want tighter p-values
-		Alpha:         0.05,  // 95% significance
-		Seed:          12345, // or 0 for time-based
-	}
+	// gbOpts := GrangerBootstrapOptions{
+	// 	NReplications: 500,   // bump to 1000+ if you want tighter p-values
+	// 	Alpha:         0.05,  // 95% significance
+	// 	Seed:          12345, // or 0 for time-based
+	// }
 
-	bootGC, err := rf.BootstrapGrangerMatrix(ts, gbOpts)
-	if err != nil {
-		panic(err)
-	}
+	// bootGC, err := rf.BootstrapGrangerMatrix(ts, gbOpts)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	bootPath := "../Files/Output/granger_bootstrap_results.csv"
-	err = rf.OutputGrangerBootstrapMatrixToCSV(bootPath, bootGC, ts.VarNames)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Bootstrap Granger causality results written to", bootPath)
+	// bootPath := "../Files/Output/granger_bootstrap_results.csv"
+	// err = rf.OutputGrangerBootstrapMatrixToCSV(bootPath, bootGC, ts.VarNames)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Println("Bootstrap Granger causality results written to", bootPath)
 }
