@@ -10,7 +10,7 @@ Watch a full walkthrough of the project in action:
 
 [![Project Demo](https://img.shields.io/badge/Demo-Google%20Drive-blue?style=for-the-badge&logo=googledrive)](https://drive.google.com/file/d/1ymkJm-H81Vskn2aj7yfR8IJK_v2HPxSj/view?usp=sharing)
 
----
+--- 
 
 ## Repository layout (key pieces)
 
