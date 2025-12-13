@@ -4,6 +4,12 @@ This project is a small toolkit for running **Vector Autoregression (VAR)**-base
 
 The Go side loads preprocessed CSVs, fits a VAR model, produces forecasts, impulse response functions (IRFs), Granger causality tests, and bootstrap confidence intervals, and writes everything to CSV. The R Shiny app compiles/runs the Go program and turns those CSVs into interactive plots. 
 
+## Project Demonstration
+
+Watch a full walkthrough of the project in action:
+
+[![Project Demo](https://img.shields.io/badge/Demo-Google%20Drive-blue?style=for-the-badge&logo=googledrive)](https://drive.google.com/file/d/1ymkJm-H81Vskn2aj7yfR8IJK_v2HPxSj/view?usp=sharing)
+
 ---
 
 ## Repository layout (key pieces)
