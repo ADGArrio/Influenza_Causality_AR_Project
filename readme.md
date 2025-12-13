@@ -115,14 +115,42 @@ choices = c("Singapore", "Qatar", "India")
 ## Repo Layout
 ```
 application/
-    main.go            # CLI driver: loads data, runs VAR, writes outputs
-    datatypes.go       # Core structs and interfaces
-    functions.go       # VAR estimation, forecasting, IRF, Granger, bootstrapping
-    io.go              # CSV loader, writers, summary printing
-    app.R              # Shiny app for visualization
+	main.go               	# CLI driver: loads data, runs VAR, writes outputs
+	datatypes.go         		# Core structs and interfaces
+	functions.go         		# VAR estimation, forecasting, IRF, Granger, bootstrapping
+	io.go                		# CSV loader, writers, summary printing
+	app.R                		# Shiny app for visualization
+    functions_test.go           # Tests for all core Go functions
+    Tests                       # Input and Output files for all function_tests
+
 Files/
-    Final_Training_Data/   # Input CSVs
-    Output/                # Generated output CSVs
-'Data Processing'
-    assumptions_checking.py    # Checks for assumptions on the dataset
+	Final_Training_Data/ 		# Input CSVs (processed influenza + weather data)
+	Output/             		# Generated output CSVs (forecasts, IRFs, GC, bootstraps)
+    Raw Data/               # Lightly processed data from WHO and NOAA 
+
+Data_Processing/
+	Assumptions_Checking/		
+		assumptions_checking.py	# Checks for VAR assumptions and data validity
+	Data_Joining/       		# Script merging influenza + weather datasets
+	Data_Cleanup/       		# General preprocessing
+	WeatherData_cleanup/		# NOAA-specific cleanup and normalization scripts
+
 ```
+
+## Summary of Repository Layout
+- **application/**  
+  All Go and R source code for VAR modeling, forecasting, IRFs, Granger causality,
+  and bootstrap-based uncertainty quantification.
+
+- **Data_Processing/**  
+  Scripts used to clean, transform, and validate influenza and weather datasets
+  before feeding them into the VAR pipeline.
+
+- **Files/Final_Training_Data/**  
+  The canonical training datasets used for model estimation.
+
+- **Files/Output/**  
+  Automatically generated results from running the Go application.
+
+- **Files/Raw Data/**  
+  Lightly processed input files retrieved from surveillance databases and NOAA.
