@@ -101,7 +101,7 @@ Find this block:
 ```Go
 switch country {
 case "Singapore":
-    filename = "Singapore/SG_Training_Data_INF_"
+    filename = "Singapore/Training_Data_INF_"
 case "Qatar":
     filename = "Qatar/Training_Data_INF_"
 default:
