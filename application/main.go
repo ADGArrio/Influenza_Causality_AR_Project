@@ -30,7 +30,7 @@ func main() {
 	var filename string
 	switch country {
 	case "Singapore":
-		filename = "Singapore/SG_Training_Data_INF_"
+		filename = "Singapore/Training_Data_INF_"
 	case "Qatar":
 		filename = "Qatar/Training_Data_INF_"
 	default:
@@ -158,7 +158,7 @@ func main() {
 
 	fmt.Println("Bootstrap IRF results written to:", outPath)
 
-	// 15. Run Bootstrap Granger Causality Analysis
+	// // 15. Run Bootstrap Granger Causality Analysis
 	fmt.Println("     Running Bootstrap Granger Causality      ")
 
 	gbOpts := GrangerBootstrapOptions{

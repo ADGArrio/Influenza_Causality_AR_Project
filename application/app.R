@@ -81,12 +81,13 @@ server <- function(input, output) {
     
     # Compile the Go program
     compile_result <- system("go build", intern = TRUE)
-    print(compile_result)  # For debugging, to see compile output
+    print("Go program compiled successfully.")
     
     # Run the compiled Go program
+    print("Running Go program...")
     run_result <- system(paste("./application ", as.character(country), " ", as.character(influenza_type), sep = ""),
       intern = TRUE)
-    print(run_result)  # For debugging, to see runtime output
+    print("Go program executed successfully.")
     
     # Read the CSV files
     old_data <- read.csv(paste0("../Files/Final_Training_Data/", country, "/",
@@ -94,6 +95,12 @@ server <- function(input, output) {
     forcast_data <- read.csv("../Files/Output/forecast_results.csv")
     granger_data <- read.csv("../Files/Output/granger_results.csv")
     irf_data <- read.csv("../Files/Output/irf_results.csv")
+
+    # see if data was loaded correctly
+    if (nrow(old_data) == 0 || nrow(forcast_data) == 0 || nrow(granger_data) == 0 || nrow(irf_data) == 0) {
+      stop("Error: One or more data files are empty.")
+    }
+    print("Data loaded successfully.")
 
     # Get most recent 30 days of old data
     recent_old_data <- tail(old_data, 30)
@@ -142,7 +149,7 @@ server <- function(input, output) {
 
   output$irfPlot <- renderImage({
     # animate on the fly and return as image
-    outfile <- tempfile(fileext = ".gif")
+    outfile <- tempfile(tmpdir = "../Files/Images", fileext = ".gif")
     animate(plot_irf,
             renderer = gifski_renderer(outfile),
             fps = 10,       # slower for bars
